@@ -53,16 +53,28 @@ export function Dashboard() {
     try {
       // Step 1: Upload the file to IPFS through Pinata
       setStatus({ type: "uploading-ipfs" });
-      const ipfsCid = await uploadToPinata(form.file);
+      let ipfsCid: string;
+      try {
+        ipfsCid = await uploadToPinata(form.file);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`IPFS upload failed: ${msg}`);
+      }
 
       // Step 2: Anchor the IPFS CID + metadata to Hedera HCS
       setStatus({ type: "sending-hcs" });
-      const hcsTxId = await submitToHCS({
-        patientName: form.patientName.trim(),
-        recordTitle: form.recordTitle.trim(),
-        ipfsCid,
-        timestamp: new Date().toISOString(),
-      });
+      let hcsTxId: string;
+      try {
+        hcsTxId = await submitToHCS({
+          patientName: form.patientName.trim(),
+          recordTitle: form.recordTitle.trim(),
+          ipfsCid,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`Hedera HCS submission failed: ${msg}`);
+      }
 
       // Step 3: Save to session records list and show success
       const newRecord: MedicalRecord = {

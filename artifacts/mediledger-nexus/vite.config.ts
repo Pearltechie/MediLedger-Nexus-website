@@ -52,6 +52,12 @@ export default defineConfig({
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
       "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
+      // Force the browser-specific build of the Hedera SDK so gRPC-web is used
+      // instead of Node.js gRPC (which doesn't work in browsers)
+      "@hashgraph/sdk": path.resolve(
+        import.meta.dirname,
+        "node_modules/@hashgraph/sdk/lib/browser.js"
+      ),
     },
     dedupe: ["react", "react-dom"],
   },
