@@ -1,0 +1,56 @@
+Build a complete frontend-only React app for MediLedger Nexus. The app demonstrates secure medical record management using IPFS and Hedera Consensus Service (HCS). Do not include any backend. 
+
+Requirements:
+
+1. Dashboard Page:
+   - Form to add a medical record with:
+       - Patient name
+       - Record title
+       - File upload (PDF or image)
+   - Button labeled "Upload & Secure"
+   - When submitted:
+       - Upload the file to IPFS using Pinata API (use JWT from REACT_APP_PINATA_JWT environment variable)
+       - Obtain the IPFS CID/hash
+       - Send the IPFS hash and patient info to a Hedera HCS topic using @hashgraph/sdk
+       - Use Hedera testnet credentials from environment variables:
+           - REACT_APP_HEDERA_ACCOUNT_ID
+           - REACT_APP_HEDERA_PRIVATE_KEY
+           - REACT_APP_HEDERA_TOPIC_ID
+       - Display the IPFS hash and HCS transaction ID
+       - Show message: "Verified ✅" in green (#16A34A)
+   - Handle errors with a red (#DC2626) message
+   - Show loading states when uploading or sending transactions
+
+2. Recent Records Section:
+   - Display a list of records added in the session
+   - Each record in a card showing:
+       - Patient name
+       - Record title
+       - IPFS hash
+       - HCS transaction ID
+   - Card styling: white background, rounded corners, shadow, padding
+   - Use indigo border (#6366F1) for cards, hover effect slightly darker
+
+3. Styling / Colors:
+   - Primary color for buttons and highlights: #4F46E5 (indigo)
+   - Secondary color for borders and inputs: #6366F1 (lighter indigo)
+   - Success: #16A34A (green)
+   - Error: #DC2626 (red)
+   - Background: light gray (#F3F4F6)
+   - Typography: sans-serif, readable
+   - Buttons: rounded, hover effect, consistent size
+   - Mobile-friendly layout and spacing
+
+4. Code Structure:
+   - Modular React components (e.g., Dashboard.jsx, RecordCard.jsx)
+   - Include comments explaining IPFS and HCS integration in your own style
+   - Clean, readable, demo-ready code
+   - Instructions to run the app on Replit
+
+5. End Goal:
+   - Fully working frontend demo showing:
+       - File upload to IPFS
+       - Secure message sent to Hedera HCS
+       - Display of IPFS hash and HCS transaction ID
+       - Recent records list
+       - Mobile-friendly UI with clear colors and visual feedback

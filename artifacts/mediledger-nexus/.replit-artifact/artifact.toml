@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "MediLedger Nexus"
+version = "1.0.0"
+id = "artifacts/mediledger-nexus"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 26096
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/mediledger-nexus run dev"
+
+[services.env]
+PORT = "26096"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/mediledger-nexus", "run", "build"]
+publicDir = "artifacts/mediledger-nexus/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
