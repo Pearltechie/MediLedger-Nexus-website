@@ -16,6 +16,18 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 
+## Artifacts
+
+### `artifacts/mediledger-nexus` (`@workspace/mediledger-nexus`)
+
+Frontend-only React + Vite app for **MediLedger Nexus** — secure medical record management.
+
+- Uploads files to IPFS via Pinata API
+- Anchors IPFS CID + patient info to Hedera HCS (testnet)
+- Requires secrets: `VITE_PINATA_JWT`, `VITE_HEDERA_ACCOUNT_ID`, `VITE_HEDERA_PRIVATE_KEY`, `VITE_HEDERA_TOPIC_ID`
+- Key files: `src/components/Dashboard.tsx`, `src/components/RecordCard.tsx`, `src/lib/pinata.ts`, `src/lib/hedera.ts`
+- Uses `vite-plugin-node-polyfills` for `@hashgraph/sdk` browser compat
+
 ## Structure
 
 ```text
