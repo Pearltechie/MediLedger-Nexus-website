@@ -5,23 +5,45 @@
 import {
   Client,
   TopicMessageSubmitTransaction,
+  TopicId,
   AccountId,
   PrivateKey,
 } from "@hashgraph/sdk";
 
+function parsePrivateKey(raw: string): PrivateKey {
+  // Try each format in order: auto-detect, then hex, then DER
+  const attempts: Array<() => PrivateKey> = [
+    () => PrivateKey.fromString(raw),
+    () => PrivateKey.fromStringED25519(raw),
+    () => PrivateKey.fromStringECDSA(raw),
+    () => PrivateKey.fromStringDer(raw),
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      return attempt();
+    } catch {
+      // try next format
+    }
+  }
+
+  throw new Error(
+    "Could not parse VITE_HEDERA_PRIVATE_KEY. Make sure it is the HEX Encoded Private Key from the Hedera portal."
+  );
+}
+
 function getHederaClient(): Client {
-  const accountId = import.meta.env.VITE_HEDERA_ACCOUNT_ID;
-  const privateKey = import.meta.env.VITE_HEDERA_PRIVATE_KEY;
+  const accountId = import.meta.env.VITE_HEDERA_ACCOUNT_ID?.trim();
+  const privateKey = import.meta.env.VITE_HEDERA_PRIVATE_KEY?.trim();
 
   if (!accountId || !privateKey) {
-    throw new Error("Hedera credentials not configured. Please set VITE_HEDERA_ACCOUNT_ID and VITE_HEDERA_PRIVATE_KEY.");
+    throw new Error(
+      "Hedera credentials not configured. Please set VITE_HEDERA_ACCOUNT_ID and VITE_HEDERA_PRIVATE_KEY."
+    );
   }
 
   const client = Client.forTestnet();
-  client.setOperator(
-    AccountId.fromString(accountId),
-    PrivateKey.fromStringDer(privateKey)
-  );
+  client.setOperator(AccountId.fromString(accountId), parsePrivateKey(privateKey));
   return client;
 }
 
@@ -33,9 +55,9 @@ export interface HCSMessage {
 }
 
 export async function submitToHCS(message: HCSMessage): Promise<string> {
-  const topicId = import.meta.env.VITE_HEDERA_TOPIC_ID;
+  const rawTopicId = import.meta.env.VITE_HEDERA_TOPIC_ID?.trim();
 
-  if (!topicId) {
+  if (!rawTopicId) {
     throw new Error("VITE_HEDERA_TOPIC_ID is not configured.");
   }
 
@@ -46,11 +68,9 @@ export async function submitToHCS(message: HCSMessage): Promise<string> {
     const payload = JSON.stringify(message);
 
     const txResponse = await new TopicMessageSubmitTransaction()
-      .setTopicId(topicId)
+      .setTopicId(TopicId.fromString(rawTopicId))
       .setMessage(payload)
       .execute(client);
-
-    const receipt = await txResponse.getReceipt(client);
 
     // The transaction ID uniquely identifies this HCS message forever
     return txResponse.transactionId.toString();
