@@ -8,6 +8,8 @@ export interface HCSMessage {
   recordTitle: string;
   ipfsCid: string;
   timestamp: string;
+  ivHex?: string;       // AES-GCM IV — public, needed alongside the key to decrypt
+  encrypted?: boolean;  // signals the file on IPFS is AES-256-GCM encrypted
 }
 
 export async function submitToHCS(message: HCSMessage): Promise<string> {

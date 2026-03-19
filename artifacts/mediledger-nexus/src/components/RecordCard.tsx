@@ -1,9 +1,8 @@
 // RecordCard displays a single secured medical record entry.
-// Each card shows patient info, the IPFS CID (proof of file storage),
-// and the HCS transaction ID (proof of blockchain anchoring).
+// Shows patient info, IPFS CID, HCS transaction ID, and the decryption key.
 
-import React from "react";
-import { CheckCircle2, FileText, Hash, Link2 } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, FileText, Hash, Link2, KeyRound, Copy, Check } from "lucide-react";
 
 export interface MedicalRecord {
   id: string;
@@ -11,7 +10,26 @@ export interface MedicalRecord {
   recordTitle: string;
   ipfsCid: string;
   hcsTransactionId: string;
+  keyHex: string;
+  ivHex: string;
   createdAt: string;
+}
+
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={async () => {
+        await navigator.clipboard.writeText(value);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      className="ml-1 p-0.5 rounded transition hover:bg-black/10 flex-shrink-0"
+      title="Copy"
+    >
+      {copied ? <Check size={11} className="text-green-700" /> : <Copy size={11} className="text-gray-400" />}
+    </button>
+  );
 }
 
 interface RecordCardProps {
@@ -42,43 +60,62 @@ export function RecordCard({ record }: RecordCardProps) {
         </div>
         <div className="flex items-center gap-1" style={{ color: "#16A34A" }}>
           <CheckCircle2 size={16} />
-          <span className="text-xs font-semibold">Verified</span>
+          <span className="text-xs font-semibold">Encrypted & Verified</span>
         </div>
       </div>
 
-      {/* IPFS Hash */}
+      {/* Decryption Key */}
+      <div className="mb-2 rounded-lg p-2.5 border" style={{ backgroundColor: "#FEF9C3", borderColor: "#FDE047" }}>
+        <div className="flex items-center gap-1 mb-1">
+          <KeyRound size={12} className="text-yellow-700" />
+          <span className="text-xs font-semibold text-yellow-800 uppercase tracking-wide">Decryption Key</span>
+        </div>
+        <div className="flex items-start gap-1">
+          <p className="font-mono text-xs break-all text-yellow-900 flex-1">{record.keyHex}</p>
+          <CopyButton value={record.keyHex} />
+        </div>
+      </div>
+
+      {/* IPFS CID */}
       <div className="mb-2">
         <div className="flex items-center gap-1 mb-1">
           <Hash size={13} className="text-gray-400" />
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">IPFS CID</span>
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">IPFS CID (encrypted file)</span>
         </div>
-        <a
-          href={ipfsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-mono text-xs break-all rounded px-2 py-1 block transition-colors hover:opacity-80"
-          style={{ backgroundColor: "#EEF2FF", color: "#4F46E5" }}
-          title="View file on IPFS"
-        >
-          {record.ipfsCid}
-        </a>
+        <div className="flex items-start gap-1">
+          <a
+            href={ipfsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-xs break-all rounded px-2 py-1 flex-1 transition-colors hover:opacity-80"
+            style={{ backgroundColor: "#EEF2FF", color: "#4F46E5" }}
+          >
+            {record.ipfsCid}
+          </a>
+          <CopyButton value={record.ipfsCid} />
+        </div>
       </div>
 
-      {/* HCS Transaction ID */}
+      {/* HCS Transaction */}
       <div className="mb-3">
         <div className="flex items-center gap-1 mb-1">
           <Link2 size={13} className="text-gray-400" />
           <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">HCS Transaction</span>
         </div>
-        <p
-          className="font-mono text-xs break-all rounded px-2 py-1"
-          style={{ backgroundColor: "#F0FDF4", color: "#15803D" }}
-        >
-          {record.hcsTransactionId}
-        </p>
+        <div className="flex items-start gap-1">
+          <a
+            href={`https://hashscan.io/testnet/transaction/${record.hcsTransactionId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-xs break-all rounded px-2 py-1 flex-1 transition-colors hover:opacity-80"
+            style={{ backgroundColor: "#F0FDF4", color: "#15803D" }}
+          >
+            {record.hcsTransactionId}
+          </a>
+          <CopyButton value={record.hcsTransactionId} />
+        </div>
       </div>
 
-      {/* Timestamp */}
       <p className="text-gray-400 text-xs text-right">
         {new Date(record.createdAt).toLocaleString()}
       </p>

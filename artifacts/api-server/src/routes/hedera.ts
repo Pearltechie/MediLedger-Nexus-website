@@ -100,11 +100,13 @@ router.post("/hedera/submit-hcs", async (req, res) => {
     return;
   }
 
-  const { patientName, recordTitle, ipfsCid, timestamp } = req.body as {
+  const { patientName, recordTitle, ipfsCid, timestamp, ivHex, encrypted } = req.body as {
     patientName?: string;
     recordTitle?: string;
     ipfsCid?: string;
     timestamp?: string;
+    ivHex?: string;
+    encrypted?: boolean;
   };
 
   if (!patientName || !recordTitle || !ipfsCid) {
@@ -118,7 +120,7 @@ router.post("/hedera/submit-hcs", async (req, res) => {
     client = built.client;
     const privateKey = built.privateKey;
 
-    const payload = JSON.stringify({ patientName, recordTitle, ipfsCid, timestamp });
+    const payload = JSON.stringify({ patientName, recordTitle, ipfsCid, timestamp, ...(ivHex && { ivHex }), ...(encrypted !== undefined && { encrypted }) });
 
     // Freeze → explicitly sign with the matched key → execute
     // Explicit signing avoids any ambiguity with how the SDK uses the operator key

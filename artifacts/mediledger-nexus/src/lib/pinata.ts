@@ -1,28 +1,28 @@
-// IPFS upload via Pinata
-// Pinata pins files to IPFS and returns a Content Identifier (CID) — a unique fingerprint
-// of the file content. The same file always produces the same CID, making it tamper-evident.
+// IPFS upload via Pinata.
+// Files are encrypted before this function is called, so only ciphertext
+// is ever sent to Pinata / stored on IPFS. The decryption key never leaves the user's browser.
 
-export async function uploadToPinata(file: File): Promise<string> {
+export async function uploadToPinata(encryptedBytes: Uint8Array, originalFileName: string): Promise<string> {
   const jwt = import.meta.env.VITE_PINATA_JWT;
 
   if (!jwt) {
     throw new Error("VITE_PINATA_JWT is not configured.");
   }
 
-  const formData = new FormData();
-  formData.append("file", file);
+  // Wrap the encrypted bytes in a Blob so we can pass it as FormData
+  const blob = new Blob([encryptedBytes], { type: "application/octet-stream" });
+  const encryptedFile = new File([blob], `${originalFileName}.enc`);
 
-  // Optional metadata so records are easy to find in the Pinata dashboard
+  const formData = new FormData();
+  formData.append("file", encryptedFile);
   formData.append(
     "pinataMetadata",
-    JSON.stringify({ name: file.name })
+    JSON.stringify({ name: encryptedFile.name, keyvalues: { encrypted: "AES-256-GCM" } })
   );
 
   const response = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${jwt}`,
-    },
+    headers: { Authorization: `Bearer ${jwt}` },
     body: formData,
   });
 
@@ -32,7 +32,5 @@ export async function uploadToPinata(file: File): Promise<string> {
   }
 
   const data = await response.json();
-
-  // IpfsHash is the CID — use it to retrieve the file from any IPFS gateway
   return data.IpfsHash as string;
 }
