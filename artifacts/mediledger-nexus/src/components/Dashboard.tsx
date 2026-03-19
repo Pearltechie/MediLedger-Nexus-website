@@ -3,6 +3,7 @@
 // The decryption key is generated client-side and never leaves the browser.
 
 import React, { useState, useRef } from "react";
+import { useLocation } from "wouter";
 import {
   Upload,
   Loader2,
@@ -14,6 +15,7 @@ import {
   KeyRound,
   Copy,
   Check,
+  ArrowLeft,
 } from "lucide-react";
 import { encryptFile } from "@/lib/encryption";
 import { uploadToPinata } from "@/lib/pinata";
@@ -53,6 +55,7 @@ function CopyButton({ value }: { value: string }) {
 }
 
 export function Dashboard() {
+  const [, setLocation] = useLocation();
   const [form, setForm] = useState<FormState>({
     patientName: "",
     recordTitle: "",
@@ -155,6 +158,13 @@ export function Dashboard() {
       {/* Header */}
       <header style={{ backgroundColor: "#4F46E5" }} className="shadow-md">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5 flex items-center gap-3">
+          <button
+            onClick={() => setLocation("/")}
+            className="bg-white/10 hover:bg-white/20 rounded-lg p-2 transition mr-1"
+            title="Back to home"
+          >
+            <ArrowLeft size={18} className="text-white" />
+          </button>
           <div className="bg-white/20 rounded-xl p-2">
             <ShieldCheck size={28} className="text-white" />
           </div>
