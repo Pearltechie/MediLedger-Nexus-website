@@ -260,8 +260,8 @@ export function LandingPage() {
           </div>
 
           <div className="hidden md:block">
-            <MintButton onClick={() => setLocation("/dashboard")}>
-              Launch App <ArrowRight size={14} />
+            <MintButton onClick={() => setLocation("/auth")}>
+              Get Started <ArrowRight size={14} />
             </MintButton>
           </div>
 
@@ -285,7 +285,7 @@ export function LandingPage() {
                 {label}
               </a>
             ))}
-            <MintButton onClick={() => setLocation("/dashboard")}>Launch App <ArrowRight size={14} /></MintButton>
+            <MintButton onClick={() => setLocation("/auth")}>Get Started <ArrowRight size={14} /></MintButton>
           </div>
         )}
       </nav>
@@ -331,8 +331,8 @@ export function LandingPage() {
           </motion.p>
 
           <motion.div variants={fadeUp} custom={3} className="flex flex-wrap items-center justify-center gap-4">
-            <MintButton large onClick={() => setLocation("/dashboard")}>
-              Launch Dashboard <ArrowRight size={16} />
+            <MintButton large onClick={() => setLocation("/auth")}>
+              Get Started <ArrowRight size={16} />
             </MintButton>
             <MintButton large outline onClick={() => document.getElementById("problem")?.scrollIntoView({ behavior: "smooth" })}>
               Learn More <ChevronRight size={16} />
@@ -544,8 +544,8 @@ export function LandingPage() {
               <p className="text-base mb-10" style={{ color: "#64748B" }}>
                 Try the live dashboard — encrypt a file, upload to IPFS, and anchor it to Hedera in under 60 seconds. No account required.
               </p>
-              <MintButton large onClick={() => setLocation("/dashboard")}>
-                Launch Dashboard <ArrowRight size={16} />
+              <MintButton large onClick={() => setLocation("/auth")}>
+                Get Started <ArrowRight size={16} />
               </MintButton>
             </GlassCard>
           </motion.div>

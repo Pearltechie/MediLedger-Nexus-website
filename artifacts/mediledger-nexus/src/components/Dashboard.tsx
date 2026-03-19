@@ -1,9 +1,9 @@
-// Dashboard — main page of MediLedger Nexus.
-// Flow: Encrypt file locally → Upload ciphertext to IPFS → Anchor CID + IV on Hedera HCS.
-// The decryption key is generated client-side and never leaves the browser.
+// Dashboard — cyber-medical themed upload interface.
+// Flow: Encrypt → IPFS → Hedera HCS. Requires auth via appStore.
 
 import React, { useState, useRef } from "react";
 import { useLocation } from "wouter";
+import { motion } from "framer-motion";
 import {
   Upload,
   Loader2,
@@ -16,11 +16,27 @@ import {
   Copy,
   Check,
   ArrowLeft,
+  Brain,
+  ExternalLink,
+  Hash,
+  Link2,
+  LogOut,
 } from "lucide-react";
 import { encryptFile } from "@/lib/encryption";
 import { uploadToPinata } from "@/lib/pinata";
 import { submitToHCS } from "@/lib/hedera";
+import { useAppStore } from "@/store/appStore";
 import { RecordCard, type MedicalRecord } from "@/components/RecordCard";
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const BG = "#05070A";
+const MINT = "#00FFA3";
+const SILVER = "#E2E8F0";
+const MUTED = "#64748B";
+const MINT_GLASS = "rgba(0,255,163,0.06)";
+const MINT_BORDER = "rgba(0,255,163,0.2)";
+const GLASS_BG = "rgba(255,255,255,0.03)";
+const GLASS_BORDER = "rgba(255,255,255,0.07)";
 
 interface FormState {
   patientName: string;
@@ -38,36 +54,49 @@ type Status =
 
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
   return (
     <button
-      onClick={handleCopy}
-      className="ml-2 flex-shrink-0 p-1 rounded transition hover:bg-black/10"
-      title="Copy to clipboard"
+      onClick={async () => {
+        await navigator.clipboard.writeText(value);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      className="ml-1 p-1 rounded transition flex-shrink-0"
+      style={{ color: copied ? MINT : MUTED }}
+      title="Copy"
     >
-      {copied ? <Check size={13} className="text-green-700" /> : <Copy size={13} className="text-gray-400" />}
+      {copied ? <Check size={12} /> : <Copy size={12} />}
     </button>
+  );
+}
+
+function GlassCard({ children, className = "", glow = false }: { children: React.ReactNode; className?: string; glow?: boolean }) {
+  return (
+    <div
+      className={`rounded-2xl border p-6 ${className}`}
+      style={{
+        background: GLASS_BG,
+        borderColor: glow ? MINT_BORDER : GLASS_BORDER,
+        boxShadow: glow ? "0 0 30px rgba(0,255,163,0.06)" : "none",
+        backdropFilter: "blur(12px)",
+      }}
+    >
+      {children}
+    </div>
   );
 }
 
 export function Dashboard() {
   const [, setLocation] = useLocation();
-  const [form, setForm] = useState<FormState>({
-    patientName: "",
-    recordTitle: "",
-    file: null,
-  });
+  const { hospitalName, walletAddress, logout } = useAppStore();
+  const [form, setForm] = useState<FormState>({ patientName: "", recordTitle: "", file: null });
   const [status, setStatus] = useState<Status>({ type: "idle" });
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
-    setForm((prev) => ({ ...prev, file }));
+    setForm((p) => ({ ...p, file }));
     if (status.type !== "idle") setStatus({ type: "idle" });
   };
 
@@ -76,49 +105,28 @@ export function Dashboard() {
     if (!form.file || !form.patientName.trim() || !form.recordTitle.trim()) return;
 
     try {
-      // Step 1: Encrypt the file locally (AES-256-GCM, key never leaves the browser)
       setStatus({ type: "encrypting" });
-      let keyHex: string;
-      let ivHex: string;
-      let encryptedBytes: Uint8Array;
-      try {
-        const result = await encryptFile(form.file);
-        keyHex = result.keyHex;
-        ivHex = result.ivHex;
-        encryptedBytes = result.encryptedBytes;
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        throw new Error(`Encryption failed: ${msg}`);
-      }
+      const { keyHex, ivHex, encryptedBytes } = await encryptFile(form.file).catch((err) => {
+        throw new Error(`Encryption failed: ${err instanceof Error ? err.message : err}`);
+      });
 
-      // Step 2: Upload the encrypted ciphertext to IPFS via Pinata
       setStatus({ type: "uploading-ipfs" });
-      let ipfsCid: string;
-      try {
-        ipfsCid = await uploadToPinata(encryptedBytes, form.file.name);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        throw new Error(`IPFS upload failed: ${msg}`);
-      }
+      const ipfsCid = await uploadToPinata(encryptedBytes, form.file.name).catch((err) => {
+        throw new Error(`IPFS upload failed: ${err instanceof Error ? err.message : err}`);
+      });
 
-      // Step 3: Anchor the IPFS CID + IV on Hedera HCS (key is NOT stored here)
       setStatus({ type: "sending-hcs" });
-      let hcsTxId: string;
-      try {
-        hcsTxId = await submitToHCS({
-          patientName: form.patientName.trim(),
-          recordTitle: form.recordTitle.trim(),
-          ipfsCid,
-          timestamp: new Date().toISOString(),
-          ivHex,           // IV is public — needed to decrypt along with the key
-          encrypted: true,
-        });
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        throw new Error(`Hedera HCS submission failed: ${msg}`);
-      }
+      const hcsTxId = await submitToHCS({
+        patientName: form.patientName.trim(),
+        recordTitle: form.recordTitle.trim(),
+        ipfsCid,
+        timestamp: new Date().toISOString(),
+        ivHex,
+        encrypted: true,
+      }).catch((err) => {
+        throw new Error(`Hedera HCS failed: ${err instanceof Error ? err.message : err}`);
+      });
 
-      // Step 4: Show success — user must save their decryption key
       const newRecord: MedicalRecord = {
         id: crypto.randomUUID(),
         patientName: form.patientName.trim(),
@@ -129,97 +137,185 @@ export function Dashboard() {
         ivHex,
         createdAt: new Date().toISOString(),
       };
-      setRecords((prev) => [newRecord, ...prev]);
+      setRecords((p) => [newRecord, ...p]);
       setStatus({ type: "success", ipfsCid, hcsTxId, keyHex, ivHex });
-
       setForm({ patientName: "", recordTitle: "", file: null });
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "An unexpected error occurred.";
-      setStatus({ type: "error", message });
+      setStatus({ type: "error", message: err instanceof Error ? err.message : "An unexpected error occurred." });
     }
   };
 
-  const isLoading =
-    status.type === "encrypting" ||
-    status.type === "uploading-ipfs" ||
-    status.type === "sending-hcs";
+  const isLoading = ["encrypting", "uploading-ipfs", "sending-hcs"].includes(status.type);
 
   const loadingLabel = () => {
-    if (status.type === "encrypting") return "Encrypting file…";
-    if (status.type === "uploading-ipfs") return "Uploading to IPFS…";
-    if (status.type === "sending-hcs") return "Anchoring on Hedera HCS…";
+    if (status.type === "encrypting") return "Encrypting file locally…";
+    if (status.type === "uploading-ipfs") return "Uploading ciphertext to IPFS…";
+    if (status.type === "sending-hcs") return "Anchoring proof on Hedera HCS…";
     return "";
   };
 
+  const handleLogout = () => {
+    logout();
+    setLocation("/");
+  };
+
+  const shortAddr = walletAddress ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : null;
+
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#F3F4F6" }}>
-      {/* Header */}
-      <header style={{ backgroundColor: "#4F46E5" }} className="shadow-md">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5 flex items-center gap-3">
-          <button
-            onClick={() => setLocation("/")}
-            className="bg-white/10 hover:bg-white/20 rounded-lg p-2 transition mr-1"
-            title="Back to home"
-          >
-            <ArrowLeft size={18} className="text-white" />
-          </button>
-          <div className="bg-white/20 rounded-xl p-2">
-            <ShieldCheck size={28} className="text-white" />
+    <div className="min-h-screen" style={{ background: BG, color: SILVER }}>
+
+      {/* Ambient glow */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
+        <div
+          className="absolute rounded-full blur-3xl opacity-10"
+          style={{ width: 500, height: 500, top: -100, left: "50%", transform: "translateX(-50%)", background: "radial-gradient(circle, #00FFA3 0%, transparent 70%)" }}
+        />
+      </div>
+
+      {/* ── Header ── */}
+      <header
+        className="sticky top-0 z-40 border-b backdrop-blur-xl"
+        style={{ background: "rgba(5,7,10,0.9)", borderColor: GLASS_BORDER }}
+      >
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+          {/* Left — logo + hospital */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setLocation("/")}
+              className="p-2 rounded-lg transition"
+              style={{ color: MUTED }}
+              title="Back to home"
+              onMouseEnter={(e) => (e.currentTarget.style.color = MINT)}
+              onMouseLeave={(e) => (e.currentTarget.style.color = MUTED)}
+            >
+              <ArrowLeft size={17} />
+            </button>
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}` }}
+            >
+              <ShieldCheck size={16} style={{ color: MINT }} />
+            </div>
+            <div>
+              <p className="text-sm font-black leading-tight" style={{ color: SILVER }}>
+                {hospitalName ?? "MediLedger Nexus"}
+              </p>
+              {shortAddr && (
+                <p className="font-mono text-xs" style={{ color: MUTED }}>{shortAddr}</p>
+              )}
+            </div>
           </div>
-          <div>
-            <h1 className="text-white text-xl font-bold tracking-tight">MediLedger Nexus</h1>
-            <p className="text-indigo-200 text-xs">Encrypted Medical Records on IPFS + Hedera HCS</p>
+
+          {/* Right — Sentinel AI + logout */}
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:flex items-center gap-2 rounded-full px-3 py-1.5" style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}` }}>
+              <motion.div
+                animate={{ opacity: [1, 0.3, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <Brain size={14} style={{ color: MINT }} />
+              </motion.div>
+              <span className="text-xs font-semibold" style={{ color: MINT }}>Sentinel AI: Active</span>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: MINT, boxShadow: `0 0 5px ${MINT}` }} />
+            </div>
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-lg transition"
+              style={{ color: MUTED }}
+              title="Logout"
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#FF6B6B")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = MUTED)}
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+      <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
 
-        {/* Upload Form Card */}
-        <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-          <h2 className="text-gray-900 font-semibold text-lg mb-1">Upload & Encrypt Medical Record</h2>
-          <p className="text-gray-500 text-sm mb-5">
-            Files are <span className="font-medium text-indigo-600">AES-256-GCM encrypted</span> in your browser before upload. Only ciphertext reaches IPFS — your key never leaves your device.
+        {/* Welcome banner */}
+        <div
+          className="rounded-2xl p-5 flex items-center justify-between flex-wrap gap-4"
+          style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}` }}
+        >
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: MINT }}>
+              Welcome back
+            </p>
+            <h1 className="text-xl font-black" style={{ color: SILVER }}>
+              {hospitalName ?? "Your Vault"}
+            </h1>
+            <p className="text-xs mt-0.5" style={{ color: MUTED }}>
+              Every upload is AES-256-GCM encrypted, IPFS stored, and Hedera-anchored.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={15} style={{ color: MINT }} />
+            <span className="text-xs font-semibold" style={{ color: MINT }}>Vault Active</span>
+          </div>
+        </div>
+
+        {/* ── Upload Form ── */}
+        <GlassCard glow>
+          <h2 className="font-bold text-base mb-1" style={{ color: SILVER }}>Upload & Encrypt Medical Record</h2>
+          <p className="text-xs mb-6" style={{ color: MUTED }}>
+            Files are <span style={{ color: MINT }}>AES-256-GCM encrypted</span> in your browser before upload. Only ciphertext reaches IPFS.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Patient Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Patient Name</label>
+              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-widest" style={{ color: MINT }}>
+                Patient Name
+              </label>
               <input
                 type="text"
                 value={form.patientName}
                 onChange={(e) => setForm((p) => ({ ...p, patientName: e.target.value }))}
                 placeholder="e.g. Jane Doe"
                 required
-                className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900 outline-none transition focus:ring-2"
-                style={{ borderColor: "#6366F1" }}
+                className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
+                style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}`, color: SILVER, caretColor: MINT }}
+                onFocus={(e) => (e.target.style.boxShadow = `0 0 0 2px rgba(0,255,163,0.25)`)}
+                onBlur={(e) => (e.target.style.boxShadow = "none")}
               />
             </div>
 
             {/* Record Title */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Record Title</label>
+              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-widest" style={{ color: MINT }}>
+                Record Title
+              </label>
               <input
                 type="text"
                 value={form.recordTitle}
                 onChange={(e) => setForm((p) => ({ ...p, recordTitle: e.target.value }))}
                 placeholder="e.g. Blood Test Results 2024"
                 required
-                className="w-full rounded-lg border px-3 py-2 text-sm text-gray-900 outline-none transition focus:ring-2"
-                style={{ borderColor: "#6366F1" }}
+                className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
+                style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}`, color: SILVER, caretColor: MINT }}
+                onFocus={(e) => (e.target.style.boxShadow = `0 0 0 2px rgba(0,255,163,0.25)`)}
+                onBlur={(e) => (e.target.style.boxShadow = "none")}
               />
             </div>
 
             {/* File Upload */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">File (PDF or Image)</label>
+              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-widest" style={{ color: MINT }}>
+                File (PDF or Image)
+              </label>
               <div
-                className="relative rounded-lg border-2 border-dashed p-4 flex flex-col items-center justify-center cursor-pointer transition hover:bg-indigo-50"
-                style={{ borderColor: "#6366F1" }}
+                className="rounded-xl border-2 border-dashed p-6 flex flex-col items-center justify-center cursor-pointer transition-all"
+                style={{ borderColor: MINT_BORDER, background: MINT_GLASS }}
                 onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files?.[0] ?? null;
+                  if (file) setForm((p) => ({ ...p, file }));
+                }}
               >
                 <input
                   ref={fileInputRef}
@@ -231,8 +327,8 @@ export function Dashboard() {
                 />
                 {form.file ? (
                   <div className="flex items-center gap-2">
-                    <FileUp size={18} style={{ color: "#4F46E5" }} />
-                    <span className="text-sm font-medium text-gray-700">{form.file.name}</span>
+                    <FileUp size={16} style={{ color: MINT }} />
+                    <span className="text-sm font-medium" style={{ color: SILVER }}>{form.file.name}</span>
                     <button
                       type="button"
                       onClick={(e) => {
@@ -240,87 +336,90 @@ export function Dashboard() {
                         setForm((p) => ({ ...p, file: null }));
                         if (fileInputRef.current) fileInputRef.current.value = "";
                       }}
-                      className="ml-1 text-gray-400 hover:text-red-500 transition"
+                      className="transition"
+                      style={{ color: MUTED }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = "#FF6B6B")}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = MUTED)}
                     >
-                      <X size={16} />
+                      <X size={15} />
                     </button>
                   </div>
                 ) : (
                   <>
-                    <Upload size={24} className="text-indigo-400 mb-2" />
-                    <p className="text-sm text-gray-500">
-                      Click to select a <span className="font-medium text-indigo-600">PDF or image</span>
+                    <Upload size={22} className="mb-2" style={{ color: MINT }} />
+                    <p className="text-sm" style={{ color: MUTED }}>
+                      Click or drag to select a <span style={{ color: MINT }}>PDF or image</span>
                     </p>
                   </>
                 )}
               </div>
             </div>
 
-            {/* Submit Button */}
-            <button
+            {/* Submit */}
+            <motion.button
               type="submit"
               disabled={isLoading || !form.file}
-              className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 px-4 text-sm font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{ backgroundColor: isLoading ? "#6366F1" : "#4F46E5" }}
-              onMouseEnter={(e) => { if (!isLoading) (e.currentTarget.style.backgroundColor = "#4338CA"); }}
-              onMouseLeave={(e) => { if (!isLoading) (e.currentTarget.style.backgroundColor = "#4F46E5"); }}
+              whileHover={!isLoading && form.file ? { scale: 1.01 } : {}}
+              whileTap={!isLoading && form.file ? { scale: 0.98 } : {}}
+              className="w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                background: isLoading ? MINT_GLASS : MINT,
+                color: isLoading ? MINT : BG,
+                border: isLoading ? `1px solid ${MINT_BORDER}` : "none",
+                boxShadow: isLoading ? "none" : `0 0 28px rgba(0,255,163,0.4)`,
+              }}
             >
               {isLoading ? (
                 <>
-                  <Loader2 size={16} className="animate-spin" />
+                  <Loader2 size={15} className="animate-spin" />
                   {loadingLabel()}
                 </>
               ) : (
                 <>
-                  <ShieldCheck size={16} />
+                  <ShieldCheck size={15} />
                   Encrypt, Upload & Secure
                 </>
               )}
-            </button>
+            </motion.button>
           </form>
 
-          {/* Success */}
+          {/* ── Success ── */}
           {status.type === "success" && (
-            <div
-              className="mt-5 rounded-xl p-4 border space-y-3"
-              style={{ backgroundColor: "#F0FDF4", borderColor: "#86EFAC" }}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6 rounded-2xl p-5 space-y-4"
+              style={{ background: "rgba(0,255,163,0.04)", border: `1px solid rgba(0,255,163,0.25)` }}
             >
-              <div className="flex items-center gap-2" style={{ color: "#16A34A" }}>
-                <CheckCircle2 size={18} />
-                <span className="font-semibold text-sm">Encrypted & Verified ✅</span>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={17} style={{ color: MINT }} />
+                <span className="font-bold text-sm" style={{ color: MINT }}>Encrypted & Anchored on-chain</span>
               </div>
 
-              {/* Decryption Key — most important */}
-              <div className="rounded-lg border p-3" style={{ backgroundColor: "#FEF9C3", borderColor: "#FDE047" }}>
-                <div className="flex items-center gap-1 mb-1">
-                  <KeyRound size={14} className="text-yellow-700" />
-                  <span className="text-xs font-semibold text-yellow-800 uppercase tracking-wide">Decryption Key — Save This Now!</span>
+              {/* Key */}
+              <div className="rounded-xl p-3" style={{ background: "rgba(255,193,7,0.06)", border: "1px solid rgba(255,193,7,0.2)" }}>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <KeyRound size={13} style={{ color: "#FFC107" }} />
+                  <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "#FFC107" }}>Decryption Key — Save This Now</span>
                 </div>
-                <p className="text-xs text-yellow-700 mb-1">This key is the only way to decrypt your file. It is not stored anywhere.</p>
+                <p className="text-xs mb-1" style={{ color: "#A37F00" }}>Never stored anywhere — this is your only copy.</p>
                 <div className="flex items-start gap-1">
-                  <p className="font-mono text-xs break-all text-yellow-900 flex-1">{status.keyHex}</p>
+                  <p className="font-mono text-xs break-all flex-1" style={{ color: "#FFC107" }}>{status.keyHex}</p>
                   <CopyButton value={status.keyHex} />
-                </div>
-              </div>
-
-              {/* IV */}
-              <div>
-                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-0.5">IV (Initialization Vector)</p>
-                <div className="flex items-center gap-1">
-                  <p className="font-mono text-xs break-all text-gray-600 flex-1">{status.ivHex}</p>
-                  <CopyButton value={status.ivHex} />
                 </div>
               </div>
 
               {/* IPFS CID */}
               <div>
-                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-0.5">IPFS CID (encrypted file)</p>
+                <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: MUTED }}>IPFS CID</p>
                 <div className="flex items-center gap-1">
+                  <Hash size={12} style={{ color: MINT }} />
                   <a
                     href={`https://gateway.pinata.cloud/ipfs/${status.ipfsCid}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-mono text-xs break-all text-green-700 hover:underline flex-1"
+                    className="font-mono text-xs break-all flex-1 hover:underline"
+                    style={{ color: MINT }}
                   >
                     {status.ipfsCid}
                   </a>
@@ -328,40 +427,43 @@ export function Dashboard() {
                 </div>
               </div>
 
-              {/* HCS TX */}
-              <div>
-                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-0.5">HCS Transaction ID</p>
+              {/* HCS Proof of Truth */}
+              <div className="rounded-xl p-3" style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}` }}>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Link2 size={13} style={{ color: MINT }} />
+                  <span className="text-xs font-bold uppercase tracking-wide" style={{ color: MINT }}>Proof of Truth — Hedera HCS</span>
+                </div>
                 <div className="flex items-center gap-1">
-                  <a
-                    href={`https://hashscan.io/testnet/transaction/${status.hcsTxId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-mono text-xs break-all text-green-700 hover:underline flex-1"
-                  >
-                    {status.hcsTxId}
-                  </a>
+                  <p className="font-mono text-xs break-all flex-1" style={{ color: SILVER }}>{status.hcsTxId}</p>
                   <CopyButton value={status.hcsTxId} />
                 </div>
+                <a
+                  href={`https://hashscan.io/testnet/transaction/${status.hcsTxId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-2 text-xs font-semibold hover:opacity-80 transition"
+                  style={{ color: MINT }}
+                >
+                  <ExternalLink size={11} />
+                  View on HashScan
+                </a>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {/* Error */}
           {status.type === "error" && (
-            <div
-              className="mt-4 rounded-lg p-4 border flex items-start gap-2"
-              style={{ backgroundColor: "#FEF2F2", borderColor: "#FECACA" }}
-            >
-              <AlertCircle size={18} style={{ color: "#DC2626" }} className="flex-shrink-0 mt-0.5" />
-              <p className="text-sm" style={{ color: "#DC2626" }}>{status.message}</p>
+            <div className="mt-4 flex items-start gap-2 rounded-xl p-4" style={{ background: "rgba(255,59,48,0.06)", border: "1px solid rgba(255,59,48,0.2)" }}>
+              <AlertCircle size={16} style={{ color: "#FF6B6B" }} className="flex-shrink-0 mt-0.5" />
+              <p className="text-sm" style={{ color: "#FF6B6B" }}>{status.message}</p>
             </div>
           )}
-        </div>
+        </GlassCard>
 
-        {/* Recent Records */}
+        {/* ── Record History ── */}
         {records.length > 0 && (
           <div>
-            <h2 className="text-gray-900 font-semibold text-lg mb-4">
+            <h2 className="font-bold text-sm mb-4 uppercase tracking-widest" style={{ color: MUTED }}>
               Session Records ({records.length})
             </h2>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -373,9 +475,11 @@ export function Dashboard() {
         )}
 
         {records.length === 0 && status.type !== "success" && (
-          <div className="text-center text-gray-400 text-sm py-4">
-            <ShieldCheck size={32} className="mx-auto mb-2 text-indigo-200" />
-            Encrypted, secured records will appear here after upload.
+          <div className="text-center py-8">
+            <ShieldCheck size={36} className="mx-auto mb-2" style={{ color: "rgba(0,255,163,0.15)" }} />
+            <p className="text-xs" style={{ color: "#1E293B" }}>
+              Encrypted, Hedera-anchored records will appear here.
+            </p>
           </div>
         )}
       </main>

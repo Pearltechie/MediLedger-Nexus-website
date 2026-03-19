@@ -76,6 +76,10 @@
     "zod": "catalog:"
   },
   "dependencies": {
-    "@hashgraph/sdk": "^2.81.0"
+    "@hashgraph/sdk": "^2.81.0",
+    "@web3auth/base": "^9.7.0",
+    "@web3auth/modal": "^10.15.0",
+    "viem": "^2.47.5",
+    "zustand": "^5.0.12"
   }
 }
