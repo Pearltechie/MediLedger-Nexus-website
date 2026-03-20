@@ -77,7 +77,7 @@ function LoginStep({ onSuccess }: { onSuccess: (address: string, web3auth: Web3A
     setError("");
     try {
       const web3auth = getWeb3Auth();
-      await web3auth.initModal();
+      await web3auth.init();
       const provider = await web3auth.connect();
       if (!provider) throw new Error("Login cancelled.");
       const address = await getConnectedAddress(web3auth);
