@@ -10,7 +10,7 @@
 [![React](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-61DAFB?style=for-the-badge&logo=react)](https://vitejs.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
-**[🌐 Live Demo](https://medi-ledger-frontend--jehofawapelumi.replit.app)** &nbsp;·&nbsp; **[🎥 Demo Video](https://youtu.be/DSXzH3Heiig)** &nbsp;·&nbsp; **[📋 Issues](https://github.com/Pearltechie/MediLedger-Nexus-website/issues)**
+**[🌐 Live Demo](https://medi-ledger-frontend--jehofawapelumi.replit.app)** &nbsp;·&nbsp; **[🎥 Demo Video](https://youtu.be/1d5RNDWey9g)** &nbsp;·&nbsp; **[📋 Issues](https://github.com/Pearltechie/MediLedger-Nexus-website/issues)**
 
 ---
 
