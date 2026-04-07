@@ -239,9 +239,9 @@ export function LandingPage() {
 
       {/* ── Nav ── */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-xl" style={{ borderColor: "rgba(255,255,255,0.06)", background: "rgba(5,7,10,0.85)" }}>
-        <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-6 h-28 flex items-center justify-between">
           <div className="flex items-center">
-            <img src={logoUrl} alt="MediLedger Nexus" className="h-16 w-auto" style={{ filter: "drop-shadow(0 0 12px rgba(0,255,163,0.35))" }} />
+            <img src={logoUrl} alt="MediLedger Nexus" className="h-24 w-auto" style={{ filter: "drop-shadow(0 0 16px rgba(0,255,163,0.4))" }} />
           </div>
 
           {/* Desktop links */}
