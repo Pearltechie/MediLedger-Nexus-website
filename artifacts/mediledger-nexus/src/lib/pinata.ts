@@ -1,16 +1,10 @@
-// IPFS upload via Pinata.
-// Files are encrypted before this function is called, so only ciphertext
-// is ever sent to Pinata / stored on IPFS. The decryption key never leaves the user's browser.
+// IPFS upload via Pinata. Only encrypted ciphertext is ever sent.
 
-export async function uploadToPinata(encryptedBytes: Uint8Array, originalFileName: string): Promise<string> {
+export async function uploadToPinata(encryptedBytes: Uint8Array<ArrayBuffer>, originalFileName: string): Promise<string> {
   const jwt = import.meta.env.VITE_PINATA_JWT;
+  if (!jwt) throw new Error("VITE_PINATA_JWT is not configured.");
 
-  if (!jwt) {
-    throw new Error("VITE_PINATA_JWT is not configured.");
-  }
-
-  // Wrap the encrypted bytes in a Blob so we can pass it as FormData
-  const blob = new Blob([encryptedBytes], { type: "application/octet-stream" });
+  const blob = new Blob([encryptedBytes.buffer], { type: "application/octet-stream" });
   const encryptedFile = new File([blob], `${originalFileName}.enc`);
 
   const formData = new FormData();

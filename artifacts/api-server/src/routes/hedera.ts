@@ -9,6 +9,8 @@ import {
   TopicId,
   AccountId,
   PrivateKey,
+  AccountCreateTransaction,
+  Hbar,
 } from "@hashgraph/sdk";
 
 const router: IRouter = Router();
@@ -134,6 +136,50 @@ router.post("/hedera/submit-hcs", async (req, res) => {
 
     const transactionId = txResponse.transactionId.toString();
     res.json({ transactionId });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: message });
+  } finally {
+    client?.close();
+  }
+});
+
+// Creates a new Hedera testnet account — operator pays, so it's gasless for the user.
+// Returns { accountId } — the DID is constructed client-side as did:hedera:testnet:<accountId>
+router.post("/hedera/create-account", async (req, res) => {
+  const operatorId = process.env.VITE_HEDERA_ACCOUNT_ID?.trim();
+  const privateKeyRaw = process.env.VITE_HEDERA_PRIVATE_KEY?.trim();
+
+  if (!operatorId || !privateKeyRaw) {
+    res.status(500).json({ error: "VITE_HEDERA_ACCOUNT_ID and VITE_HEDERA_PRIVATE_KEY must be set." });
+    return;
+  }
+
+  let client: Client | null = null;
+  try {
+    const built = await buildClient(operatorId, privateKeyRaw);
+    client = built.client;
+    const operatorKey = built.privateKey;
+
+    // Generate a fresh ED25519 key for the new hospital account
+    const newKey = PrivateKey.generateED25519();
+
+    const tx = await new AccountCreateTransaction()
+      .setKey(newKey.publicKey)
+      .setInitialBalance(new Hbar(0))
+      .setAccountMemo("MediLedger Nexus Hospital Identity")
+      .freezeWith(client);
+
+    const signed = await tx.sign(operatorKey);
+    const response = await signed.execute(client);
+    const receipt = await response.getReceipt(client);
+    const newAccountId = receipt.accountId?.toString();
+
+    if (!newAccountId) {
+      throw new Error("Account creation returned no accountId.");
+    }
+
+    res.json({ accountId: newAccountId });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: message });

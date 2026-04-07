@@ -21,6 +21,11 @@ import {
   Hash,
   Link2,
   LogOut,
+  User,
+  Wallet,
+  CreditCard,
+  Fingerprint,
+  Sparkles,
 } from "lucide-react";
 import { encryptFile } from "@/lib/encryption";
 import { uploadToPinata } from "@/lib/pinata";
@@ -83,6 +88,113 @@ function GlassCard({ children, className = "", glow = false }: { children: React
     >
       {children}
     </div>
+  );
+}
+
+// ─── Hedera Identity Card ──────────────────────────────────────────────────────
+function IdentityCard() {
+  const { hederaIdentity, userEmail, walletAddress } = useAppStore();
+
+  const rows = [
+    {
+      icon: <User size={13} />,
+      label: "Hospital Email",
+      value: userEmail ?? "—",
+      mono: false,
+    },
+    {
+      icon: <Wallet size={13} />,
+      label: "Wallet Address",
+      value: walletAddress ? `${walletAddress.slice(0, 10)}…${walletAddress.slice(-8)}` : "—",
+      full: walletAddress ?? "",
+      mono: true,
+    },
+    {
+      icon: <CreditCard size={13} />,
+      label: "Hedera Account ID",
+      value: hederaIdentity?.accountId ?? "—",
+      full: hederaIdentity?.accountId ?? "",
+      mono: true,
+      link: hederaIdentity?.accountId
+        ? `https://hashscan.io/testnet/account/${hederaIdentity.accountId}`
+        : undefined,
+    },
+    {
+      icon: <Fingerprint size={13} />,
+      label: "Hedera DID",
+      value: hederaIdentity?.did
+        ? `${hederaIdentity.did.slice(0, 32)}…`
+        : "—",
+      full: hederaIdentity?.did ?? "",
+      mono: true,
+    },
+  ];
+
+  return (
+    <GlassCard>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Sparkles size={16} style={{ color: MINT }} />
+          <h2 className="font-bold text-sm" style={{ color: SILVER }}>Hospital Identity</h2>
+        </div>
+        {hederaIdentity && (
+          <span
+            className="text-xs font-bold px-2.5 py-1 rounded-full"
+            style={{
+              background: hederaIdentity.status === "New Identity"
+                ? "rgba(0,255,163,0.1)"
+                : "rgba(100,116,139,0.15)",
+              border: `1px solid ${hederaIdentity.status === "New Identity" ? MINT_BORDER : "rgba(100,116,139,0.3)"}`,
+              color: hederaIdentity.status === "New Identity" ? MINT : MUTED,
+            }}
+          >
+            {hederaIdentity.status}
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {rows.map(({ icon, label, value, full, mono, link }) => (
+          <div
+            key={label}
+            className="flex items-center justify-between rounded-xl px-4 py-2.5 gap-3"
+            style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}` }}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span style={{ color: MINT }}>{icon}</span>
+              <span className="text-xs shrink-0" style={{ color: MUTED }}>{label}</span>
+            </div>
+            <div className="flex items-center gap-1 min-w-0">
+              {link ? (
+                <a
+                  href={link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline"
+                  title={full ?? value}
+                >
+                  <span className={`text-xs truncate max-w-[200px] ${mono ? "font-mono" : ""}`} style={{ color: SILVER }}>
+                    {value}
+                  </span>
+                </a>
+              ) : (
+                <span className={`text-xs truncate max-w-[200px] ${mono ? "font-mono" : ""}`} style={{ color: SILVER }} title={full ?? value}>
+                  {value}
+                </span>
+              )}
+              {full && <CopyButton value={full} />}
+              {link && <a href={link} target="_blank" rel="noopener noreferrer" className="ml-0.5 flex-shrink-0" style={{ color: MINT }}><ExternalLink size={11} /></a>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {!hederaIdentity && (
+        <p className="text-xs mt-3 text-center" style={{ color: MUTED }}>
+          Identity will appear after vault initialization.
+        </p>
+      )}
+    </GlassCard>
   );
 }
 
@@ -256,6 +368,9 @@ export function Dashboard() {
             <span className="text-xs font-semibold" style={{ color: MINT }}>Vault Active</span>
           </div>
         </div>
+
+        {/* ── Hedera Identity Card ── */}
+        <IdentityCard />
 
         {/* ── Upload Form ── */}
         <GlassCard glow>

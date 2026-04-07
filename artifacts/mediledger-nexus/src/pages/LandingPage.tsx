@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, type Variants } from "framer-motion";
 import { useLocation } from "wouter";
 import {
   ShieldCheck,
@@ -18,29 +18,33 @@ import {
 import { useState } from "react";
 
 // ─── Animation helpers ────────────────────────────────────────────────────────
-const fadeUp = {
+// Cubic bezier typed as a 4-tuple so framer-motion accepts it as Easing.
+const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+const fadeUp: Variants = {
   hidden: { opacity: 0, y: 40 },
-  visible: (i = 0) => ({
+  visible: (i: number = 0) => ({
     opacity: 1,
     y: 0,
-    transition: { duration: 0.7, delay: i * 0.12, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.7, delay: i * 0.12, ease: EASE_OUT },
   }),
 };
 
-const fadeIn = {
+const fadeIn: Variants = {
   hidden: { opacity: 0 },
-  visible: (i = 0) => ({
+  visible: (i: number = 0) => ({
     opacity: 1,
     transition: { duration: 0.6, delay: i * 0.1 },
   }),
 };
 
-function Section({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function Section({ children, className = "", id }: { children: React.ReactNode; className?: string; id?: string }) {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-80px" });
   return (
     <motion.section
       ref={ref}
+      id={id}
       initial="hidden"
       animate={inView ? "visible" : "hidden"}
       className={className}
