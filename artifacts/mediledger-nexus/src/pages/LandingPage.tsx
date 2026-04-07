@@ -239,9 +239,9 @@ export function LandingPage() {
 
       {/* ── Nav ── */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-xl" style={{ borderColor: "rgba(255,255,255,0.06)", background: "rgba(5,7,10,0.85)" }}>
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center">
-            <img src={logoUrl} alt="MediLedger Nexus" className="h-14 w-auto" style={{ filter: "drop-shadow(0 0 10px rgba(0,255,163,0.3))" }} />
+            <img src={logoUrl} alt="MediLedger Nexus" className="h-16 w-auto" style={{ filter: "drop-shadow(0 0 12px rgba(0,255,163,0.35))" }} />
           </div>
 
           {/* Desktop links */}
@@ -555,7 +555,7 @@ export function LandingPage() {
       <footer className="relative z-10 border-t py-8 px-6" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center">
-            <img src={logoUrl} alt="MediLedger Nexus" className="h-12 w-auto opacity-80" />
+            <img src={logoUrl} alt="MediLedger Nexus" className="h-16 w-auto opacity-90" />
           </div>
           <p className="text-xs" style={{ color: "#334155" }}>
             Built on Hedera HCS + IPFS · AES-256-GCM Encrypted · Web3 Medical Infrastructure

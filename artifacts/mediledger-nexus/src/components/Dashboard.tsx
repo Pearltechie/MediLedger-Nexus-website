@@ -304,7 +304,7 @@ export function Dashboard() {
             >
               <ArrowLeft size={17} />
             </button>
-            <img src={logoUrl} alt="MediLedger Nexus" className="h-11 w-auto" style={{ filter: "drop-shadow(0 0 8px rgba(0,255,163,0.3))" }} />
+            <img src={logoUrl} alt="MediLedger Nexus" className="h-14 w-auto" style={{ filter: "drop-shadow(0 0 10px rgba(0,255,163,0.35))" }} />
             <div>
               <p className="text-sm font-black leading-tight" style={{ color: SILVER }}>
                 {hospitalName ?? "MediLedger Nexus"}

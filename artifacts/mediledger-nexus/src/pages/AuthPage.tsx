@@ -385,7 +385,7 @@ export function AuthPage() {
 
       {/* Logo */}
       <div className="mb-10">
-        <img src={logoUrl} alt="MediLedger Nexus" className="h-24 w-auto" style={{ filter: "drop-shadow(0 0 16px rgba(0,255,163,0.35))" }} />
+        <img src={logoUrl} alt="MediLedger Nexus" className="h-40 w-auto" style={{ filter: "drop-shadow(0 0 20px rgba(0,255,163,0.4))" }} />
       </div>
 
       {/* Step indicator — only show for login / register */}
