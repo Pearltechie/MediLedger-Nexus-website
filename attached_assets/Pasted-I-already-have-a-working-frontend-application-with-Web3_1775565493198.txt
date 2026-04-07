@@ -1,0 +1,80 @@
+I already have a working frontend application with Web3Auth fully integrated for hospital authentication (signup/login). Users may sign in using email/social login OR wallet login.
+
+IMPORTANT:
+DO NOT modify, replace, or break any existing Web3Auth login/signup logic, wallet connection logic, UI, routing, or current authentication flow.
+Only EXTEND the system AFTER successful login/signup.
+
+I want to add automatic Hedera identity creation in a safe, non-breaking way.
+
+CORE REQUIREMENT:
+Each hospital must only ever have ONE Hedera account and ONE DID, regardless of how they log in.
+
+UNIQUE IDENTITY RULE:
+Use a stable unique identity key in this priority order:
+1. user.verifierId (preferred)
+2. user.email
+3. connected wallet public address
+
+Store this as identityKey.
+
+AFTER SUCCESSFUL LOGIN:
+1. Get the authenticated user object from Web3Auth
+2. Derive identityKey using:
+   verifierId || email || walletAddress
+3. Check localStorage using identityKey
+
+IF identity ALREADY EXISTS:
+- load existing saved data
+- do NOT create another Hedera account
+- do NOT create another DID
+- show existing identity on dashboard
+- status = Existing Identity
+
+IF identity DOES NOT EXIST:
+- create a new Hedera Testnet account using Hedera JavaScript SDK
+- use operator credentials from environment variables:
+  HEDERA_ACCOUNT_ID
+  HEDERA_PRIVATE_KEY
+- generate a new keypair
+- create account with initial balance
+- create DID in EXACT format:
+  did:hedera:testnet:<accountId>
+- save to localStorage:
+  {
+    identityKey,
+    email,
+    walletAddress,
+    accountId,
+    did
+  }
+- status = New Identity
+
+RETURNING LOGIN FLOW:
+When the same hospital logs in again using either the same email/social method OR the same wallet, the system must automatically recognize them and load the SAME Hedera account and DID.
+
+This must permanently prevent duplicate account creation.
+
+CREATE REUSABLE FUNCTION:
+async function createOrLoadHederaIdentity(user, walletAddress)
+
+UI:
+Create a clean Tailwind dashboard card showing:
+- Hospital Email (if available)
+- Wallet Address (if available)
+- Hedera Account ID
+- Hedera DID
+- Status (New Identity / Existing Identity)
+
+TECH RULES:
+- use async/await
+- no backend
+- no database
+- localStorage only
+- keep code simple and production-clean
+- preserve all current Web3Auth functionality
+
+OUTPUT:
+- full reusable function
+- exact integration point after login success
+- UI component
+- clear instructions where to paste code
