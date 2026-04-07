@@ -20,13 +20,24 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ### `artifacts/mediledger-nexus` (`@workspace/mediledger-nexus`)
 
-Frontend-only React + Vite app for **MediLedger Nexus** — secure medical record management.
+React + Vite frontend for **MediLedger Nexus** — Web3 medical identity platform.
 
-- Uploads files to IPFS via Pinata API
-- Anchors IPFS CID + patient info to Hedera HCS (testnet)
-- Requires secrets: `VITE_PINATA_JWT`, `VITE_HEDERA_ACCOUNT_ID`, `VITE_HEDERA_PRIVATE_KEY`, `VITE_HEDERA_TOPIC_ID`
-- Key files: `src/components/Dashboard.tsx`, `src/components/RecordCard.tsx`, `src/lib/pinata.ts`, `src/lib/hedera.ts`
+- **Auth**: Web3Auth Sapphire Devnet (passkey / social login); managed in `src/lib/web3auth.ts`
+- **Identity**: `src/lib/hederaIdentity.ts` — `checkExistingIdentity` detects returning users (localStorage); `createNewHederaIdentity` calls backend to create a Hedera account with hospital name as on-chain memo
+- **Routing**: wouter — `/` landing, `/auth` onboarding (smart: returning users skip form), `/dashboard` protected
+- **State**: Zustand + sessionStorage — tracks `isAuthenticated`, `walletAddress`, `userEmail`, `hospitalName`, `isRegistered`, `hederaIdentity`
+- **Records**: AES-256-GCM browser encryption → Pinata IPFS → Hedera HCS anchor via backend
+- Logo: `public/logo.png` (used in nav, auth page, dashboard header)
+- Requires secrets: `VITE_PINATA_JWT`, `VITE_WEB3AUTH_CLIENT_ID`
 - Uses `vite-plugin-node-polyfills` for `@hashgraph/sdk` browser compat
+
+### `artifacts/api-server` (`@workspace/api-server`)
+
+Express backend for Hedera SDK operations (gRPC cannot run in browsers).
+
+- `POST /api/hedera/submit-hcs` — anchors encrypted record to Hedera HCS
+- `POST /api/hedera/create-account` — creates a new Hedera testnet account; uses `hospitalName` from body as on-chain memo
+- Requires secrets: `VITE_HEDERA_ACCOUNT_ID`, `VITE_HEDERA_PRIVATE_KEY`, `VITE_HEDERA_TOPIC_ID`
 
 ## Structure
 

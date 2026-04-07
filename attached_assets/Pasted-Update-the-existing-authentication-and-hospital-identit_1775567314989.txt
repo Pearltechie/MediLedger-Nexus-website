@@ -1,0 +1,80 @@
+Update the existing authentication and hospital identity flow without changing the current working Web3Auth + Hedera DID integration.
+
+1) Use hospital name as Hedera account memo
+
+When a hospital signs up for the first time and enters their hospital name, use that exact hospital name as the Hedera account memo instead of the generic text ""mediledger Nexus hospital identity"".
+
+Example:
+
+- If hospital enters Reddington Hospital
+- The Hedera account memo on HashScan should be Reddington Hospital
+
+Do this during the initial account creation step only.
+
+Example logic:
+
+.setAccountMemo(hospitalName)
+
+Do not use the old static memo string anymore.
+
+---
+
+2) Persist hospital name after signup
+
+After successful signup, save the hospital name together with the hospital identity record.
+
+Store it in the same persistent storage already being used for authentication/session management.
+
+Suggested fields:
+
+{
+  hospitalName,
+  accountId,
+  did,
+  walletAddress,
+  createdAt
+}
+
+---
+
+3) Returning login should not ask for hospital name again
+
+For hospitals that have already signed up before:
+
+- On login with the same Web3Auth account or wallet
+- Recognize the returning hospital using their unique wallet address / Web3Auth user ID / DID
+- Fetch their previously saved hospital name
+- Do NOT show the hospital-name input form again
+- Do NOT create a new Hedera account
+- Do NOT generate another DID
+
+Instead, restore their existing session and take them directly to the dashboard.
+
+This is very important to prevent duplicate hospital identities.
+
+---
+
+4) Dashboard welcome message
+
+On successful login, the dashboard should automatically welcome them using their saved hospital name.
+
+Example:
+
+Welcome back, Reddington Hospital
+
+or
+
+Welcome to MediLedger Nexus, Reddington Hospital
+
+The name should come from stored data, not from asking the user again.
+
+---
+
+5) First-time vs returning user logic
+
+Implement this logic clearly:
+
+- First-time user → ask for hospital name → create Hedera account + DID → save data
+- Returning user → skip hospital name step → load saved profile → open dashboard
+
+Keep all existing working authentication logic intact.

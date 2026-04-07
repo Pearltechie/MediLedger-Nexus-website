@@ -155,19 +155,21 @@ router.post("/hedera/create-account", async (req, res) => {
     return;
   }
 
+  // Use the hospital's real name as the on-chain account memo
+  const hospitalName: string = (req.body as { hospitalName?: string }).hospitalName?.trim() || "MediLedger Nexus Hospital";
+
   let client: Client | null = null;
   try {
     const built = await buildClient(operatorId, privateKeyRaw);
     client = built.client;
     const operatorKey = built.privateKey;
 
-    // Generate a fresh ED25519 key for the new hospital account
     const newKey = PrivateKey.generateED25519();
 
     const tx = await new AccountCreateTransaction()
       .setKey(newKey.publicKey)
       .setInitialBalance(new Hbar(0))
-      .setAccountMemo("MediLedger Nexus Hospital Identity")
+      .setAccountMemo(hospitalName)
       .freezeWith(client);
 
     const signed = await tx.sign(operatorKey);

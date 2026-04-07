@@ -3,6 +3,7 @@
 
 import React, { useState, useRef } from "react";
 import { useLocation } from "wouter";
+import logoUrl from "/logo.png";
 import { motion } from "framer-motion";
 import {
   Upload,
@@ -303,12 +304,7 @@ export function Dashboard() {
             >
               <ArrowLeft size={17} />
             </button>
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}` }}
-            >
-              <ShieldCheck size={16} style={{ color: MINT }} />
-            </div>
+            <img src={logoUrl} alt="MediLedger Nexus" className="h-8 w-auto" style={{ filter: "drop-shadow(0 0 6px rgba(0,255,163,0.25))" }} />
             <div>
               <p className="text-sm font-black leading-tight" style={{ color: SILVER }}>
                 {hospitalName ?? "MediLedger Nexus"}

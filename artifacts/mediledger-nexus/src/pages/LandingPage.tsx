@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { motion, useInView, type Variants } from "framer-motion";
 import { useLocation } from "wouter";
+import logoUrl from "/logo.png";
 import {
   ShieldCheck,
   Fingerprint,
@@ -239,14 +240,8 @@ export function LandingPage() {
       {/* ── Nav ── */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-xl" style={{ borderColor: "rgba(255,255,255,0.06)", background: "rgba(5,7,10,0.85)" }}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: "rgba(0,255,163,0.15)", border: "1px solid rgba(0,255,163,0.3)" }}
-            >
-              <ShieldCheck size={16} style={{ color: "#00FFA3" }} />
-            </div>
-            <span className="font-bold text-sm tracking-tight" style={{ color: "#E2E8F0" }}>MediLedger <span style={{ color: "#00FFA3" }}>Nexus</span></span>
+          <div className="flex items-center">
+            <img src={logoUrl} alt="MediLedger Nexus" className="h-10 w-auto" style={{ filter: "drop-shadow(0 0 8px rgba(0,255,163,0.25))" }} />
           </div>
 
           {/* Desktop links */}
@@ -559,9 +554,8 @@ export function LandingPage() {
       {/* ── Footer ── */}
       <footer className="relative z-10 border-t py-8 px-6" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={16} style={{ color: "#00FFA3" }} />
-            <span className="text-sm font-semibold" style={{ color: "#E2E8F0" }}>MediLedger Nexus</span>
+          <div className="flex items-center">
+            <img src={logoUrl} alt="MediLedger Nexus" className="h-8 w-auto opacity-80" />
           </div>
           <p className="text-xs" style={{ color: "#334155" }}>
             Built on Hedera HCS + IPFS · AES-256-GCM Encrypted · Web3 Medical Infrastructure
