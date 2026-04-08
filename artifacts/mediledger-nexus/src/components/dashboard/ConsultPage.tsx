@@ -34,7 +34,7 @@ import {
   addConsent,
   updateConsent,
 } from "@/lib/consentStore";
-import { submitConsentToHCS } from "@/lib/consent";
+import { submitConsentToHCS, fetchConsentTopicId } from "@/lib/consent";
 
 const AMBER = "#F59E0B";
 const MINT = "#00FFA3";
@@ -47,8 +47,6 @@ const GLASS_BG = "rgba(255,255,255,0.025)";
 const GLASS_BORDER = "rgba(255,255,255,0.07)";
 const MINT_GLASS = "rgba(0,255,163,0.07)";
 const MINT_BORDER = "rgba(0,255,163,0.2)";
-
-const CONSENT_TOPIC = "0.0.8554639";
 
 type Tab = "incoming" | "outgoing" | "active";
 
@@ -345,7 +343,7 @@ function NewRequestModal({
     let hcsTxId: string | undefined;
 
     try {
-      hcsTxId = await submitConsentToHCS({
+      const result = await submitConsentToHCS({
         action: "REQUEST",
         consentId,
         requesterDid: myDid,
@@ -358,6 +356,7 @@ function NewRequestModal({
         timestamp: now,
         accessDurationDays: form.durationDays,
       });
+      hcsTxId = result.transactionId;
     } catch {
       hcsTxId = undefined;
     }
@@ -407,7 +406,7 @@ function NewRequestModal({
             </div>
             <div>
               <p className="font-bold text-sm" style={{ color: SILVER }}>New Consultation Request</p>
-              <p className="text-xs" style={{ color: MUTED }}>Writes a REQUEST event to HCS topic {CONSENT_TOPIC}</p>
+              <p className="text-xs" style={{ color: MUTED }}>Writes a REQUEST event to the Hedera consent ledger</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg" style={{ color: MUTED }}>
@@ -562,10 +561,18 @@ export function ConsultPage({ patients, hospitalDid, hospitalName }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("incoming");
   const [showNewModal, setShowNewModal] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [consentTopic, setConsentTopic] = useState<string>("…");
+  const [topicError, setTopicError] = useState<string | null>(null);
 
   useEffect(() => {
     if (hospitalDid) setConsents(loadConsents(hospitalDid));
   }, [hospitalDid]);
+
+  useEffect(() => {
+    fetchConsentTopicId()
+      .then(setConsentTopic)
+      .catch((err: unknown) => setTopicError(err instanceof Error ? err.message : String(err)));
+  }, []);
 
   const incoming = consents.filter((c) => c.ownerDid === hospitalDid && c.status === "pending");
   const outgoing = consents.filter((c) => c.requesterDid === hospitalDid);
@@ -594,7 +601,7 @@ export function ConsultPage({ patients, hospitalDid, hospitalName }: Props) {
     const expiresAt = new Date(Date.now() + days * 86400000).toISOString();
     let hcsTxId: string | undefined;
     try {
-      hcsTxId = await submitConsentToHCS({
+      const result = await submitConsentToHCS({
         action: "APPROVE",
         consentId: consent.id,
         requesterDid: consent.requesterDid,
@@ -608,6 +615,8 @@ export function ConsultPage({ patients, hospitalDid, hospitalName }: Props) {
         accessDurationDays: days,
         expiresAt,
       });
+      hcsTxId = result.transactionId;
+      setConsentTopic(result.topicId);
     } catch { hcsTxId = undefined; }
 
     const updated = updateConsent(hospitalDid, consent.id, {
@@ -625,7 +634,7 @@ export function ConsultPage({ patients, hospitalDid, hospitalName }: Props) {
     setActionLoading(consent.id);
     let hcsTxId: string | undefined;
     try {
-      hcsTxId = await submitConsentToHCS({
+      const result = await submitConsentToHCS({
         action: "DENY",
         consentId: consent.id,
         requesterDid: consent.requesterDid,
@@ -637,6 +646,8 @@ export function ConsultPage({ patients, hospitalDid, hospitalName }: Props) {
         purpose: consent.purpose,
         timestamp: new Date().toISOString(),
       });
+      hcsTxId = result.transactionId;
+      setConsentTopic(result.topicId);
     } catch { hcsTxId = undefined; }
 
     const updated = updateConsent(hospitalDid, consent.id, {
@@ -651,7 +662,7 @@ export function ConsultPage({ patients, hospitalDid, hospitalName }: Props) {
     setActionLoading(consent.id);
     let hcsTxId: string | undefined;
     try {
-      hcsTxId = await submitConsentToHCS({
+      const result = await submitConsentToHCS({
         action: "REVOKE",
         consentId: consent.id,
         requesterDid: consent.requesterDid,
@@ -663,6 +674,8 @@ export function ConsultPage({ patients, hospitalDid, hospitalName }: Props) {
         purpose: consent.purpose,
         timestamp: new Date().toISOString(),
       });
+      hcsTxId = result.transactionId;
+      setConsentTopic(result.topicId);
     } catch { hcsTxId = undefined; }
 
     const updated = updateConsent(hospitalDid, consent.id, {
@@ -710,18 +723,30 @@ export function ConsultPage({ patients, hospitalDid, hospitalName }: Props) {
       </div>
 
       {/* Consent topic strip */}
-      <div className="flex items-center gap-3 rounded-xl px-4 py-3 mb-6"
-        style={{ background: AMBER_GLASS, border: `1px solid ${AMBER_BORDER}` }}>
-        <ShieldCheck size={14} style={{ color: AMBER }} className="flex-shrink-0" />
-        <div className="flex-1 min-w-0">
-          <span className="text-xs font-bold uppercase tracking-widest mr-2" style={{ color: AMBER }}>Consent Ledger</span>
-          <code className="font-mono text-xs" style={{ color: SILVER }}>HCS Topic {CONSENT_TOPIC}</code>
+      {topicError ? (
+        <div className="flex items-start gap-2 rounded-xl px-4 py-3 mb-6"
+          style={{ background: "rgba(255,59,48,0.06)", border: "1px solid rgba(255,59,48,0.2)" }}>
+          <AlertCircle size={13} style={{ color: "#FF6B6B" }} className="flex-shrink-0 mt-0.5" />
+          <p className="text-xs" style={{ color: "#FF6B6B" }}>Consent topic error: {topicError}</p>
         </div>
-        <a href={`https://hashscan.io/testnet/topic/${CONSENT_TOPIC}`} target="_blank" rel="noopener noreferrer"
-          className="flex items-center gap-1 text-xs font-semibold hover:underline flex-shrink-0" style={{ color: AMBER }}>
-          <ExternalLink size={11} /> HashScan
-        </a>
-      </div>
+      ) : (
+        <div className="flex items-center gap-3 rounded-xl px-4 py-3 mb-6"
+          style={{ background: AMBER_GLASS, border: `1px solid ${AMBER_BORDER}` }}>
+          <ShieldCheck size={14} style={{ color: AMBER }} className="flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-xs font-bold uppercase tracking-widest mr-2" style={{ color: AMBER }}>Consent Ledger</span>
+            <code className="font-mono text-xs" style={{ color: consentTopic === "…" ? MUTED : SILVER }}>
+              {consentTopic === "…" ? "Creating HCS topic…" : `HCS Topic ${consentTopic}`}
+            </code>
+          </div>
+          {consentTopic !== "…" && (
+            <a href={`https://hashscan.io/testnet/topic/${consentTopic}`} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs font-semibold hover:underline flex-shrink-0" style={{ color: AMBER }}>
+              <ExternalLink size={11} /> HashScan
+            </a>
+          )}
+        </div>
+      )}
 
       {/* Hospital DID info */}
       <div className="flex items-center gap-2 rounded-xl px-4 py-3 mb-6"

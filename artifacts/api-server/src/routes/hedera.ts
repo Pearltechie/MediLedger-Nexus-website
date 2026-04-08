@@ -6,6 +6,7 @@ import { Router, type IRouter } from "express";
 import {
   Client,
   TopicMessageSubmitTransaction,
+  TopicCreateTransaction,
   TopicId,
   AccountId,
   PrivateKey,
@@ -14,6 +15,10 @@ import {
 } from "@hashgraph/sdk";
 
 const router: IRouter = Router();
+
+// Cached consent topic ID — created once per server lifetime, reused for all
+// consent events (REQUEST / APPROVE / DENY / REVOKE).
+let consentTopicId: string | null = null;
 
 // Fetch the account's on-chain public key from the Mirror Node.
 // We use this to pick the right key format by comparing derived public keys.
@@ -31,10 +36,8 @@ async function getAccountPublicKey(accountId: string): Promise<string | null> {
 }
 
 async function buildClient(accountId: string, privateKeyRaw: string): Promise<{ client: Client; privateKey: PrivateKey }> {
-  // Get the account's known public key so we can verify which parsing method is correct
   const expectedPublicKey = await getAccountPublicKey(accountId);
 
-  // All candidate parsing methods to try
   const parsers: Array<() => PrivateKey> = [
     () => PrivateKey.fromStringECDSA(privateKeyRaw),
     () => PrivateKey.fromStringED25519(privateKeyRaw),
@@ -44,12 +47,10 @@ async function buildClient(accountId: string, privateKeyRaw: string): Promise<{ 
   let matchedKey: PrivateKey | undefined;
 
   if (expectedPublicKey) {
-    // Try each parser and pick the one whose derived public key matches on-chain
     for (const parse of parsers) {
       try {
         const candidate = parse();
         const derivedPub = candidate.publicKey.toStringRaw();
-        // Compare case-insensitively (both are hex)
         if (derivedPub.toLowerCase() === expectedPublicKey.toLowerCase()) {
           matchedKey = candidate;
           console.log(`[hedera] Matched key format: ${candidate.type}`);
@@ -59,16 +60,13 @@ async function buildClient(accountId: string, privateKeyRaw: string): Promise<{ 
         // try next
       }
     }
-
     if (!matchedKey) {
-      // None matched — the private key does not correspond to this account
       throw new Error(
         `The private key you provided does not match account ${accountId}. ` +
         `Please check your VITE_HEDERA_PRIVATE_KEY and VITE_HEDERA_ACCOUNT_ID are from the same account.`
       );
     }
   } else {
-    // Couldn't fetch public key — fall back to trying in order
     for (const parse of parsers) {
       try {
         matchedKey = parse();
@@ -87,7 +85,58 @@ async function buildClient(accountId: string, privateKeyRaw: string): Promise<{ 
   return { client, privateKey: matchedKey };
 }
 
+// Creates a new HCS topic and caches its ID for subsequent consent submissions.
+async function ensureConsentTopic(accountId: string, privateKeyRaw: string): Promise<string> {
+  if (consentTopicId) return consentTopicId;
 
+  let client: Client | null = null;
+  try {
+    const built = await buildClient(accountId, privateKeyRaw);
+    client = built.client;
+    const privateKey = built.privateKey;
+
+    const tx = await new TopicCreateTransaction()
+      .setTopicMemo("MediLedger Nexus — Consent Ledger")
+      .freezeWith(client);
+
+    const signed = await tx.sign(privateKey);
+    const response = await signed.execute(client);
+    const receipt = await response.getReceipt(client);
+    const newTopicId = receipt.topicId?.toString();
+
+    if (!newTopicId) throw new Error("Topic creation returned no topicId.");
+
+    consentTopicId = newTopicId;
+    console.log(`[hedera] Created consent topic: ${consentTopicId}`);
+    return consentTopicId;
+  } finally {
+    client?.close();
+  }
+}
+
+// GET /hedera/consent-topic
+// Returns the current consent topic ID, creating one on Hedera if it doesn't
+// exist yet. The frontend calls this once when the Consult page mounts.
+router.get("/hedera/consent-topic", async (req, res) => {
+  const accountId = process.env.VITE_HEDERA_ACCOUNT_ID?.trim();
+  const privateKeyRaw = process.env.VITE_HEDERA_PRIVATE_KEY?.trim();
+
+  if (!accountId || !privateKeyRaw) {
+    res.status(500).json({ error: "VITE_HEDERA_ACCOUNT_ID and VITE_HEDERA_PRIVATE_KEY must be set." });
+    return;
+  }
+
+  try {
+    const topicId = await ensureConsentTopic(accountId, privateKeyRaw);
+    res.json({ topicId });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /hedera/submit-hcs
+// Submits a medical record anchor to the configurable records topic.
 router.post("/hedera/submit-hcs", async (req, res) => {
   const topicId = process.env.VITE_HEDERA_TOPIC_ID?.trim();
   const accountId = process.env.VITE_HEDERA_ACCOUNT_ID?.trim();
@@ -122,10 +171,12 @@ router.post("/hedera/submit-hcs", async (req, res) => {
     client = built.client;
     const privateKey = built.privateKey;
 
-    const payload = JSON.stringify({ patientName, recordTitle, ipfsCid, timestamp, ...(ivHex && { ivHex }), ...(encrypted !== undefined && { encrypted }) });
+    const payload = JSON.stringify({
+      patientName, recordTitle, ipfsCid, timestamp,
+      ...(ivHex && { ivHex }),
+      ...(encrypted !== undefined && { encrypted }),
+    });
 
-    // Freeze → explicitly sign with the matched key → execute
-    // Explicit signing avoids any ambiguity with how the SDK uses the operator key
     const tx = await new TopicMessageSubmitTransaction()
       .setTopicId(TopicId.fromString(topicId))
       .setMessage(payload)
@@ -133,7 +184,6 @@ router.post("/hedera/submit-hcs", async (req, res) => {
 
     const signedTx = await tx.sign(privateKey);
     const txResponse = await signedTx.execute(client);
-
     const transactionId = txResponse.transactionId.toString();
     res.json({ transactionId });
   } catch (err: unknown) {
@@ -144,8 +194,8 @@ router.post("/hedera/submit-hcs", async (req, res) => {
   }
 });
 
-// Creates a new Hedera testnet account — operator pays, so it's gasless for the user.
-// Returns { accountId } — the DID is constructed client-side as did:hedera:testnet:<accountId>
+// POST /hedera/create-account
+// Creates a new Hedera testnet account — operator pays, gasless for the user.
 router.post("/hedera/create-account", async (req, res) => {
   const operatorId = process.env.VITE_HEDERA_ACCOUNT_ID?.trim();
   const privateKeyRaw = process.env.VITE_HEDERA_PRIVATE_KEY?.trim();
@@ -155,7 +205,6 @@ router.post("/hedera/create-account", async (req, res) => {
     return;
   }
 
-  // Use the hospital's real name as the on-chain account memo
   const hospitalName: string = (req.body as { hospitalName?: string }).hospitalName?.trim() || "MediLedger Nexus Hospital";
 
   let client: Client | null = null;
@@ -177,9 +226,7 @@ router.post("/hedera/create-account", async (req, res) => {
     const receipt = await response.getReceipt(client);
     const newAccountId = receipt.accountId?.toString();
 
-    if (!newAccountId) {
-      throw new Error("Account creation returned no accountId.");
-    }
+    if (!newAccountId) throw new Error("Account creation returned no accountId.");
 
     res.json({ accountId: newAccountId });
   } catch (err: unknown) {
@@ -190,10 +237,10 @@ router.post("/hedera/create-account", async (req, res) => {
   }
 });
 
-// Consent HCS submission — always writes to the fixed consent topic 0.0.8554639.
-// Consent actions: REQUEST | APPROVE | DENY | REVOKE
+// POST /hedera/submit-consent
+// Submits a consent lifecycle event to the consent ledger topic.
+// Auto-creates the topic on first call if it doesn't exist yet.
 router.post("/hedera/submit-consent", async (req, res) => {
-  const CONSENT_TOPIC = "0.0.8554639";
   const accountId = process.env.VITE_HEDERA_ACCOUNT_ID?.trim();
   const privateKeyRaw = process.env.VITE_HEDERA_PRIVATE_KEY?.trim();
 
@@ -210,6 +257,8 @@ router.post("/hedera/submit-consent", async (req, res) => {
 
   let client: Client | null = null;
   try {
+    const topicId = await ensureConsentTopic(accountId, privateKeyRaw);
+
     const built = await buildClient(accountId, privateKeyRaw);
     client = built.client;
     const privateKey = built.privateKey;
@@ -217,14 +266,14 @@ router.post("/hedera/submit-consent", async (req, res) => {
     const payload = JSON.stringify(body);
 
     const tx = await new TopicMessageSubmitTransaction()
-      .setTopicId(TopicId.fromString(CONSENT_TOPIC))
+      .setTopicId(TopicId.fromString(topicId))
       .setMessage(payload)
       .freezeWith(client);
 
     const signedTx = await tx.sign(privateKey);
     const txResponse = await signedTx.execute(client);
     const transactionId = txResponse.transactionId.toString();
-    res.json({ transactionId });
+    res.json({ transactionId, topicId });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: message });
