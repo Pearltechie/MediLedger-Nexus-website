@@ -186,22 +186,64 @@ function MessageBubble({
   );
 }
 
+function loadPersistedChat(hospitalDid: string): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(`aria_chat_${hospitalDid}`);
+    return raw ? (JSON.parse(raw) as ChatMessage[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePersistedChat(hospitalDid: string, messages: ChatMessage[]) {
+  try {
+    localStorage.setItem(`aria_chat_${hospitalDid}`, JSON.stringify(messages));
+  } catch {}
+}
+
+function loadPersistedPatient(hospitalDid: string, patients: Patient[]): Patient | null {
+  try {
+    const did = localStorage.getItem(`aria_patient_${hospitalDid}`);
+    return patients.find((p) => p.did === did) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function ARIAPage({ patients }: ARIAPageProps) {
   const { hederaIdentity } = useAppStore();
   const hospitalDid = hederaIdentity?.did ?? "";
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadPersistedChat(hospitalDid));
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [isAnchoring, setIsAnchoring] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(() =>
+    loadPersistedPatient(hospitalDid, patients)
+  );
   const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Persist messages whenever they change
+  useEffect(() => {
+    if (hospitalDid) savePersistedChat(hospitalDid, messages);
+  }, [messages, hospitalDid]);
+
+  // Persist selected patient whenever it changes
+  useEffect(() => {
+    if (hospitalDid) {
+      if (selectedPatient) {
+        localStorage.setItem(`aria_patient_${hospitalDid}`, selectedPatient.did);
+      } else {
+        localStorage.removeItem(`aria_patient_${hospitalDid}`);
+      }
+    }
+  }, [selectedPatient, hospitalDid]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -336,6 +378,7 @@ export function ARIAPage({ patients }: ARIAPageProps) {
     setIsThinking(false);
     setIsAnchoring(false);
     setError(null);
+    if (hospitalDid) localStorage.removeItem(`aria_chat_${hospitalDid}`);
   }
 
   const isEmpty = messages.length === 0 && !isThinking;
