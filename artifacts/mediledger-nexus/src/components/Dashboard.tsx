@@ -17,6 +17,7 @@ import { RecordsPage, type FormState, type UploadStatus } from "@/components/das
 import { ConsultPage } from "@/components/dashboard/ConsultPage";
 import { ARIAPage } from "@/components/dashboard/ARIAPage";
 import { type Patient, loadPatients, addPatient as persistPatient } from "@/lib/patientStore";
+import { PatientProfilePage } from "@/components/dashboard/PatientProfilePage";
 
 export function Dashboard() {
   const [, setLocation] = useLocation();
@@ -24,6 +25,12 @@ export function Dashboard() {
 
   // ── Navigation ──────────────────────────────────────────────────────────────
   const [activePage, setActivePage] = useState<DashboardPage>("overview");
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+
+  const handleNavigate = (page: DashboardPage) => {
+    setActivePage(page);
+    if (page !== "patients") setSelectedPatient(null);
+  };
 
   // ── Patients ─────────────────────────────────────────────────────────────────
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -141,15 +148,27 @@ export function Dashboard() {
             hospitalName={hospitalName}
             userEmail={userEmail}
             walletAddress={walletAddress}
-            onNavigate={setActivePage}
+            onNavigate={handleNavigate}
           />
         );
       case "patients":
+        if (selectedPatient) {
+          return (
+            <PatientProfilePage
+              patient={selectedPatient}
+              records={records}
+              hospitalDid={hederaIdentity?.did ?? ""}
+              onBack={() => setSelectedPatient(null)}
+              onPreview={setPreviewRecord}
+            />
+          );
+        }
         return (
           <PatientsPage
             patients={patients}
             records={records}
             onAddPatient={handleAddPatient}
+            onSelectPatient={setSelectedPatient}
           />
         );
       case "records":
@@ -178,7 +197,7 @@ export function Dashboard() {
     <>
       <DashboardLayout
         activePage={activePage}
-        onNavigate={setActivePage}
+        onNavigate={handleNavigate}
         hospitalName={hospitalName}
         hederaIdentity={hederaIdentity}
         walletAddress={walletAddress}

@@ -1,0 +1,116 @@
+The Patient Registry and DID system is already working correctly.
+
+IMPORTANT:
+DO NOT modify or break any existing logic.
+
+This includes:
+- Web3Auth authentication
+- Hedera DID logic (hospital identity)
+- Patient DID generation
+- Pinata IPFS upload/retrieval
+- AES-256 encryption/decryption
+- Hedera HCS timestamping
+- existing patient creation logic
+- existing record creation logic
+- localStorage structure
+
+This task is to EXTEND the system with better patient-centric UX and structure.
+
+-----------------------------------
+
+FEATURE 1: PATIENT PROFILE PAGE
+
+Make each patient clickable from the Patients list.
+
+When a patient is clicked:
+- Navigate to a Patient Profile page or panel
+
+Display:
+
+1. Patient Information:
+- Patient Name
+- Date of Birth
+- Gender
+- Patient DID
+
+2. Hospital Information (read-only):
+- Hospital DID
+
+3. Patient Record Timeline:
+- Show ALL records linked to this patient
+- Filter records using:
+  record.patientDid === selectedPatient.did
+
+Display records in chronological order (latest first)
+
+Each record card should show:
+- diagnosis
+- created date
+- HCS verification status
+- shortened IPFS CID
+
+Each record must be clickable → open existing preview modal
+
+-----------------------------------
+
+FEATURE 2: RECORD FILTERING BY PATIENT
+
+In RecordsPage:
+
+- If a patient is selected from dropdown:
+  ONLY show records belonging to that patient
+
+- If no patient selected:
+  show all records (current behavior)
+
+- Maintain existing patient selector logic
+
+-----------------------------------
+
+FEATURE 3: PATIENT-CENTRIC DATA FLOW
+
+Ensure:
+
+- All new records continue to include:
+  patientDid
+
+- Patient profile dynamically reflects newly created records
+
+- No duplicate or inconsistent state
+
+-----------------------------------
+
+FEATURE 4: UI IMPROVEMENTS
+
+- Use clean Tailwind layout
+- Patient Profile should have:
+  - top summary card
+  - below: records timeline
+- responsive design
+- maintain current dashboard styling
+
+-----------------------------------
+
+FEATURE 5: NAVIGATION
+
+Add navigation:
+
+Patients List → Click Patient → Patient Profile → Back button
+
+-----------------------------------
+
+STRICT RULES:
+
+- DO NOT rewrite any existing working functions
+- DO NOT change how records are created, encrypted, uploaded, or timestamped
+- DO NOT change localStorage keys or structure
+- ONLY extend UI + filtering + linking logic
+
+-----------------------------------
+
+OUTPUT:
+
+- Patient Profile component/page
+- updated PatientsPage with clickable rows
+- updated RecordsPage filtering logic
+- clean integration with existing state

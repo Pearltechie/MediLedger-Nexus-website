@@ -78,6 +78,10 @@ interface Props {
 }
 
 export function RecordsPage({ records, form, status, isLoading, loadingLabel, onFormChange, onSubmit, onPreview, fileInputRef, patients }: Props) {
+  const displayedRecords = form.patientDid
+    ? records.filter((r) => r.patientDid === form.patientDid)
+    : records;
+
   return (
     <div className="p-6 lg:p-8 max-w-6xl mx-auto">
 
@@ -324,33 +328,57 @@ export function RecordsPage({ records, form, status, isLoading, loadingLabel, on
 
         {/* ── Records List (3 cols) ── */}
         <div className="lg:col-span-3">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}` }}>
                 <FolderOpen size={13} style={{ color: MINT }} />
               </div>
-              <h2 className="font-bold text-sm" style={{ color: SILVER }}>Hospital Records</h2>
+              <h2 className="font-bold text-sm" style={{ color: SILVER }}>
+                {form.patientDid ? "Patient Records" : "Hospital Records"}
+              </h2>
             </div>
             <span className="text-xs px-2.5 py-1 rounded-full" style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}`, color: MINT }}>
-              {records.length} record{records.length !== 1 ? "s" : ""}
+              {displayedRecords.length} record{displayedRecords.length !== 1 ? "s" : ""}
             </span>
           </div>
 
-          {records.length === 0 ? (
+          {/* Active filter label */}
+          {form.patientDid && (
+            <div className="flex items-center gap-2 mb-4 rounded-xl px-3 py-2" style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}` }}>
+              <UserCheck size={12} style={{ color: MINT }} />
+              <p className="text-xs font-medium flex-1" style={{ color: MINT }}>
+                Showing records for <strong>{form.patientName}</strong>
+              </p>
+              <button
+                type="button"
+                onClick={() => onFormChange({ patientDid: undefined, patientName: "" })}
+                className="text-xs underline"
+                style={{ color: MUTED }}
+              >
+                Clear filter
+              </button>
+            </div>
+          )}
+
+          {displayedRecords.length === 0 ? (
             <div className="rounded-2xl border p-12 flex flex-col items-center justify-center text-center"
               style={{ background: GLASS_BG, borderColor: GLASS_BORDER, borderStyle: "dashed" }}>
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
                 style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}` }}>
                 <FolderOpen size={26} style={{ color: MINT, opacity: 0.5 }} />
               </div>
-              <p className="font-semibold text-sm mb-1" style={{ color: MUTED }}>No records uploaded yet</p>
+              <p className="font-semibold text-sm mb-1" style={{ color: MUTED }}>
+                {form.patientDid ? "No records for this patient" : "No records uploaded yet"}
+              </p>
               <p className="text-xs" style={{ color: "rgba(100,116,139,0.6)" }}>
-                Upload your first record using the form on the left
+                {form.patientDid
+                  ? "Upload a record with this patient selected to see it here"
+                  : "Upload your first record using the form on the left"}
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {records.map((record) => (
+              {displayedRecords.map((record) => (
                 <RecordCard key={record.id} record={record} onPreview={onPreview} />
               ))}
             </div>

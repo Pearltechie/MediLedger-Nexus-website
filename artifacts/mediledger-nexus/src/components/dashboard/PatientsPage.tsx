@@ -19,7 +19,7 @@ import {
   ExternalLink,
   Search,
   ShieldCheck,
-  ChevronDown,
+  ChevronRight,
   Link2,
   User,
 } from "lucide-react";
@@ -400,16 +400,31 @@ function RegisterModal({ onClose, onSuccess }: RegModalProps) {
 }
 
 // ─── Patient Card ─────────────────────────────────────────────────────────────
-function PatientCard({ patient, recordCount }: { patient: Patient; recordCount: number }) {
-  const [expanded, setExpanded] = useState(false);
-
+function PatientCard({
+  patient,
+  recordCount,
+  onSelect,
+}: {
+  patient: Patient;
+  recordCount: number;
+  onSelect: () => void;
+}) {
   return (
-    <div
-      className="rounded-2xl border transition-all duration-200 overflow-hidden cursor-pointer"
-      style={{ background: GLASS_BG, borderColor: expanded ? BLUE_BORDER : GLASS_BORDER }}
-      onClick={() => setExpanded((v) => !v)}
+    <motion.div
+      whileHover={{ scale: 1.005 }}
+      whileTap={{ scale: 0.998 }}
+      className="rounded-2xl border transition-all duration-200 cursor-pointer"
+      style={{ background: GLASS_BG, borderColor: GLASS_BORDER }}
+      onClick={onSelect}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLDivElement).style.borderColor = BLUE_BORDER;
+        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 20px rgba(96,165,250,0.06)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLDivElement).style.borderColor = GLASS_BORDER;
+        (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
+      }}
     >
-      {/* Card header */}
       <div className="flex items-center gap-3 p-4">
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -419,9 +434,12 @@ function PatientCard({ patient, recordCount }: { patient: Patient; recordCount: 
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-sm truncate" style={{ color: SILVER }}>{patient.fullName}</p>
-          <div className="flex items-center gap-3 mt-0.5">
+          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
             <span className="text-xs" style={{ color: MUTED }}>{patient.dateOfBirth}</span>
             <span className="text-xs" style={{ color: MUTED }}>ID: {patient.governmentIdHint}</span>
+            <span className="text-xs" style={{ color: MUTED }}>
+              Registered {new Date(patient.registeredAt).toLocaleDateString()}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -431,69 +449,20 @@ function PatientCard({ patient, recordCount }: { patient: Patient; recordCount: 
           {patient.hcsTransactionId && (
             <ShieldCheck size={14} style={{ color: MINT }} aria-label="Anchored to Hedera" />
           )}
-          <ChevronDown
-            size={14}
-            style={{ color: MUTED, transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
-          />
+          <ChevronRight size={14} style={{ color: MUTED }} />
         </div>
       </div>
 
-      {/* Expanded detail */}
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-4 pb-4 space-y-3 border-t pt-3" style={{ borderColor: GLASS_BORDER }}>
-
-              {/* DID */}
-              <div className="rounded-xl px-3 py-2.5" style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}` }}>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Fingerprint size={11} style={{ color: MINT }} />
-                  <span className="text-xs font-bold uppercase tracking-widest" style={{ color: MINT }}>Patient DID</span>
-                </div>
-                <div className="flex items-start gap-1">
-                  <code className="text-xs font-mono break-all flex-1" style={{ color: SILVER }}>{patient.did}</code>
-                  <CopyBtn value={patient.did} />
-                </div>
-              </div>
-
-              {/* Hedera proof */}
-              {patient.hcsTransactionId && (
-                <div className="rounded-xl px-3 py-2.5" style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}` }}>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Link2 size={11} style={{ color: MINT }} />
-                    <span className="text-xs font-bold uppercase tracking-widest" style={{ color: MINT }}>Hedera Proof of Registration</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <p className="font-mono text-xs truncate flex-1" style={{ color: SILVER }}>{patient.hcsTransactionId}</p>
-                    <CopyBtn value={patient.hcsTransactionId} />
-                  </div>
-                  <a
-                    href={`https://hashscan.io/testnet/transaction/${patient.hcsTransactionId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 mt-1 text-xs font-semibold hover:underline"
-                    style={{ color: MINT }}
-                  >
-                    <ExternalLink size={10} /> View on HashScan
-                  </a>
-                </div>
-              )}
-
-              <p className="text-xs text-right" style={{ color: MUTED }}>
-                Registered {new Date(patient.registeredAt).toLocaleDateString()}
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+      {/* DID preview strip */}
+      <div className="px-4 pb-3 -mt-1">
+        <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5" style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}` }}>
+          <Fingerprint size={10} style={{ color: MINT }} />
+          <code className="text-xs font-mono truncate flex-1" style={{ color: MINT }}>
+            {patient.did.slice(0, 48)}…
+          </code>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -502,9 +471,10 @@ interface Props {
   patients: Patient[];
   records: { patientDid?: string }[];
   onAddPatient: (patient: Patient) => void;
+  onSelectPatient: (patient: Patient) => void;
 }
 
-export function PatientsPage({ patients, records, onAddPatient }: Props) {
+export function PatientsPage({ patients, records, onAddPatient, onSelectPatient }: Props) {
   const [showRegModal, setShowRegModal] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -611,7 +581,12 @@ export function PatientsPage({ patients, records, onAddPatient }: Props) {
       ) : (
         <div className="space-y-3">
           {filtered.map((p) => (
-            <PatientCard key={p.id} patient={p} recordCount={getRecordCount(p.did)} />
+            <PatientCard
+              key={p.id}
+              patient={p}
+              recordCount={getRecordCount(p.did)}
+              onSelect={() => onSelectPatient(p)}
+            />
           ))}
         </div>
       )}
