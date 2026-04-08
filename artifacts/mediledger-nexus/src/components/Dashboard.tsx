@@ -187,7 +187,13 @@ export function Dashboard() {
           />
         );
       case "consult":
-        return <ConsultPage />;
+        return (
+          <ConsultPage
+            patients={patients}
+            hospitalDid={hederaIdentity?.did ?? ""}
+            hospitalName={hospitalName ?? "My Hospital"}
+          />
+        );
       case "aria":
         return <ARIAPage />;
     }

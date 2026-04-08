@@ -190,4 +190,47 @@ router.post("/hedera/create-account", async (req, res) => {
   }
 });
 
+// Consent HCS submission — always writes to the fixed consent topic 0.0.8554639.
+// Consent actions: REQUEST | APPROVE | DENY | REVOKE
+router.post("/hedera/submit-consent", async (req, res) => {
+  const CONSENT_TOPIC = "0.0.8554639";
+  const accountId = process.env.VITE_HEDERA_ACCOUNT_ID?.trim();
+  const privateKeyRaw = process.env.VITE_HEDERA_PRIVATE_KEY?.trim();
+
+  if (!accountId || !privateKeyRaw) {
+    res.status(500).json({ error: "VITE_HEDERA_ACCOUNT_ID and VITE_HEDERA_PRIVATE_KEY must be set." });
+    return;
+  }
+
+  const body = req.body as Record<string, unknown>;
+  if (!body.action || !body.consentId || !body.requesterDid || !body.ownerDid) {
+    res.status(400).json({ error: "action, consentId, requesterDid, ownerDid are required." });
+    return;
+  }
+
+  let client: Client | null = null;
+  try {
+    const built = await buildClient(accountId, privateKeyRaw);
+    client = built.client;
+    const privateKey = built.privateKey;
+
+    const payload = JSON.stringify(body);
+
+    const tx = await new TopicMessageSubmitTransaction()
+      .setTopicId(TopicId.fromString(CONSENT_TOPIC))
+      .setMessage(payload)
+      .freezeWith(client);
+
+    const signedTx = await tx.sign(privateKey);
+    const txResponse = await signedTx.execute(client);
+    const transactionId = txResponse.transactionId.toString();
+    res.json({ transactionId });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: message });
+  } finally {
+    client?.close();
+  }
+});
+
 export default router;
