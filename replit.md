@@ -16,6 +16,45 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 
+## Product Vision — MediLedger Nexus
+
+MediLedger Nexus is a **Web3-native EHR and healthcare interoperability platform**. It is not a layer on top of existing EHRs — it IS the EHR. Key product pillars:
+
+### 1. Hospital-to-Hospital Consent System (Planned)
+- Hospital B grants Hospital A time-limited access to patient records
+- Consent is hospital-controlled (not patient-controlled)
+- Every consent action (request / approve / deny / revoke / expiry) written to a dedicated Hedera HCS consent topic: **`0.0.8554639`**
+- Access automatically expires after the time limit — no manual revocation needed
+
+### 2. Privacy-Preserving AI Consultation (Planned)
+- Hospital A never receives raw records from Hospital B
+- When consent is granted, a Claude (Anthropic) AI agent decrypts the relevant IPFS records on the server side, generates a structured clinical summary, and delivers it to Hospital A
+- The summary hash is anchored on Hedera HCS as cryptographic proof of what was shared and when
+- Summary is positioned as a **clinical decision-support tool** (not diagnostic AI) to avoid regulatory device classification
+- Fields in summary: patient overview, direct answer to clinical question, relevant history, medications, recent investigations, source CID verification, AI disclaimer
+
+### 3. Patient Identity via Deterministic DID (Planned)
+- No universal patient ID exists in most countries — MediLedger Nexus solves this without government coordination
+- At patient registration: `hash(full_legal_name + date_of_birth + government_id_number)` → deterministic patient DID
+- Format: `did:mediledger:patient:z6Mk[base58_encoded_hash]`
+- The same patient at any MediLedger Nexus hospital always produces the same DID — enabling cross-hospital record matching automatically
+- Raw PII is never stored on-chain; only the DID is anchored to Hedera
+- Patient records (full PII + medical data) are encrypted and stored on IPFS, indexed by patient DID
+- Biometrics (fingerprint / facial scan hash) can serve as a fallback or primary input to the hash function — enabling identification of patients who cannot produce documents (unconscious, undocumented, etc.)
+
+### Consultation Request Form Fields (Planned)
+- Patient name + date of birth (to generate DID)
+- Requesting physician name & department
+- Urgency: Routine / Urgent / Emergency
+- Clinical question (free text)
+- Brief clinical context (2–3 sentences)
+
+### AI Model Choice
+- **Claude (Anthropic)** — chosen for precision, structured output reliability, and conservative medical safety posture
+- Accessed via Replit AI integrations (no separate API key required)
+
+---
+
 ## Artifacts
 
 ### `artifacts/mediledger-nexus` (`@workspace/mediledger-nexus`)
