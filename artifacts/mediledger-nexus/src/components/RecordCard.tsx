@@ -23,6 +23,8 @@ export interface MedicalRecord {
   fileName?: string;
   /** Original MIME type from File.type — aids preview rendering */
   mimeType?: string;
+  /** Linked patient DID from the patient registry (Phase 2+) */
+  patientDid?: string;
 }
 
 function CopyButton({ value }: { value: string }) {

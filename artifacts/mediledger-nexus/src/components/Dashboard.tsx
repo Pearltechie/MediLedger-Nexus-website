@@ -16,6 +16,7 @@ import { PatientsPage } from "@/components/dashboard/PatientsPage";
 import { RecordsPage, type FormState, type UploadStatus } from "@/components/dashboard/RecordsPage";
 import { ConsultPage } from "@/components/dashboard/ConsultPage";
 import { ARIAPage } from "@/components/dashboard/ARIAPage";
+import { type Patient, loadPatients, addPatient as persistPatient } from "@/lib/patientStore";
 
 export function Dashboard() {
   const [, setLocation] = useLocation();
@@ -23,6 +24,22 @@ export function Dashboard() {
 
   // ── Navigation ──────────────────────────────────────────────────────────────
   const [activePage, setActivePage] = useState<DashboardPage>("overview");
+
+  // ── Patients ─────────────────────────────────────────────────────────────────
+  const [patients, setPatients] = useState<Patient[]>([]);
+
+  useEffect(() => {
+    if (hederaIdentity?.did) {
+      const stored = loadPatients(hederaIdentity.did);
+      if (stored.length > 0) setPatients(stored);
+    }
+  }, [hederaIdentity?.did]);
+
+  const handleAddPatient = (patient: Patient) => {
+    if (!hederaIdentity?.did) return;
+    const updated = persistPatient(hederaIdentity.did, patient);
+    setPatients(updated);
+  };
 
   // ── Records ─────────────────────────────────────────────────────────────────
   const [records, setRecords] = useState<MedicalRecord[]>([]);
@@ -83,6 +100,7 @@ export function Dashboard() {
         createdAt: new Date().toISOString(),
         fileName: form.file.name,
         mimeType: form.file.type || "application/octet-stream",
+        patientDid: form.patientDid,
       };
 
       if (hederaIdentity?.did) {
@@ -93,7 +111,7 @@ export function Dashboard() {
       }
 
       setStatus({ type: "success", ipfsCid, hcsTxId, keyHex, ivHex });
-      setForm({ patientName: "", recordTitle: "", file: null });
+      setForm({ patientName: "", recordTitle: "", file: null, patientDid: undefined });
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: unknown) {
       setStatus({ type: "error", message: err instanceof Error ? err.message : "An unexpected error occurred." });
@@ -127,7 +145,13 @@ export function Dashboard() {
           />
         );
       case "patients":
-        return <PatientsPage />;
+        return (
+          <PatientsPage
+            patients={patients}
+            records={records}
+            onAddPatient={handleAddPatient}
+          />
+        );
       case "records":
         return (
           <RecordsPage
@@ -140,6 +164,7 @@ export function Dashboard() {
             onSubmit={handleSubmit}
             onPreview={setPreviewRecord}
             fileInputRef={fileInputRef}
+            patients={patients}
           />
         );
       case "consult":

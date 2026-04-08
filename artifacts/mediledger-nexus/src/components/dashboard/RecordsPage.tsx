@@ -18,8 +18,10 @@ import {
   Link2,
   ExternalLink,
   FolderOpen,
+  UserCheck,
 } from "lucide-react";
 import { RecordCard, type MedicalRecord } from "@/components/RecordCard";
+import type { Patient } from "@/lib/patientStore";
 
 const MINT = "#00FFA3";
 const BG = "#05070A";
@@ -51,6 +53,7 @@ export interface FormState {
   patientName: string;
   recordTitle: string;
   file: File | null;
+  patientDid?: string;
 }
 
 export type UploadStatus =
@@ -71,9 +74,10 @@ interface Props {
   onSubmit: (e: React.FormEvent) => void;
   onPreview: (record: MedicalRecord) => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
+  patients: Patient[];
 }
 
-export function RecordsPage({ records, form, status, isLoading, loadingLabel, onFormChange, onSubmit, onPreview, fileInputRef }: Props) {
+export function RecordsPage({ records, form, status, isLoading, loadingLabel, onFormChange, onSubmit, onPreview, fileInputRef, patients }: Props) {
   return (
     <div className="p-6 lg:p-8 max-w-6xl mx-auto">
 
@@ -104,22 +108,58 @@ export function RecordsPage({ records, form, status, isLoading, loadingLabel, on
 
             <form onSubmit={onSubmit} className="space-y-4">
 
-              {/* Patient Name */}
+              {/* Patient selector */}
               <div>
                 <label className="block text-xs font-bold mb-1.5 uppercase tracking-widest" style={{ color: MINT }}>
-                  Patient Name
+                  Patient
                 </label>
-                <input
-                  type="text"
-                  value={form.patientName}
-                  onChange={(e) => onFormChange({ patientName: e.target.value })}
-                  placeholder="e.g. Jane Doe"
-                  required
-                  className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
-                  style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}`, color: SILVER, caretColor: MINT }}
-                  onFocus={(e) => (e.target.style.boxShadow = `0 0 0 2px rgba(0,255,163,0.2)`)}
-                  onBlur={(e) => (e.target.style.boxShadow = "none")}
-                />
+                {patients.length > 0 ? (
+                  <div className="relative">
+                    <select
+                      value={form.patientDid ?? ""}
+                      onChange={(e) => {
+                        const patient = patients.find((p) => p.did === e.target.value);
+                        if (patient) {
+                          onFormChange({ patientName: patient.fullName, patientDid: patient.did });
+                        } else {
+                          onFormChange({ patientName: "", patientDid: undefined });
+                        }
+                      }}
+                      required
+                      className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all appearance-none pr-9"
+                      style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}`, color: form.patientDid ? SILVER : "#64748B", caretColor: MINT, colorScheme: "dark" }}
+                      onFocus={(e) => (e.currentTarget.style.boxShadow = `0 0 0 2px rgba(0,255,163,0.2)`)}
+                      onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+                    >
+                      <option value="" disabled>Select a registered patient…</option>
+                      {patients.map((p) => (
+                        <option key={p.id} value={p.did}>
+                          {p.fullName} — {p.dateOfBirth}
+                        </option>
+                      ))}
+                    </select>
+                    <UserCheck size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: form.patientDid ? MINT : "#64748B" }} />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={form.patientName}
+                      onChange={(e) => onFormChange({ patientName: e.target.value })}
+                      placeholder="e.g. Jane Doe"
+                      required
+                      className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
+                      style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}`, color: SILVER, caretColor: MINT }}
+                      onFocus={(e) => (e.target.style.boxShadow = `0 0 0 2px rgba(0,255,163,0.2)`)}
+                      onBlur={(e) => (e.target.style.boxShadow = "none")}
+                    />
+                    <p className="text-xs" style={{ color: "#64748B" }}>
+                      Tip: Register patients in the{" "}
+                      <span style={{ color: MINT }}>Patients</span>{" "}
+                      tab to link records to a verified DID.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Record Title */}
