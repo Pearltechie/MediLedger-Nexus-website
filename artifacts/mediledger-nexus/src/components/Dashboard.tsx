@@ -1,7 +1,7 @@
 // Dashboard — cyber-medical themed upload interface.
 // Flow: Encrypt → IPFS → Hedera HCS. Requires auth via appStore.
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import logoUrl from "/logo.png";
 import { motion } from "framer-motion";
@@ -33,6 +33,8 @@ import { uploadToPinata } from "@/lib/pinata";
 import { submitToHCS } from "@/lib/hedera";
 import { useAppStore } from "@/store/appStore";
 import { RecordCard, type MedicalRecord } from "@/components/RecordCard";
+import { RecordPreviewModal } from "@/components/RecordPreviewModal";
+import { loadRecords, addRecord } from "@/lib/recordStore";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const BG = "#05070A";
@@ -201,11 +203,20 @@ function IdentityCard() {
 
 export function Dashboard() {
   const [, setLocation] = useLocation();
-  const { hospitalName, walletAddress, logout } = useAppStore();
+  const { hospitalName, walletAddress, logout, hederaIdentity } = useAppStore();
   const [form, setForm] = useState<FormState>({ patientName: "", recordTitle: "", file: null });
   const [status, setStatus] = useState<Status>({ type: "idle" });
   const [records, setRecords] = useState<MedicalRecord[]>([]);
+  const [previewRecord, setPreviewRecord] = useState<MedicalRecord | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Load persisted records for this hospital's DID on mount ────────────────
+  useEffect(() => {
+    if (hederaIdentity?.did) {
+      const stored = loadRecords(hederaIdentity.did);
+      if (stored.length > 0) setRecords(stored);
+    }
+  }, [hederaIdentity?.did]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -249,8 +260,16 @@ export function Dashboard() {
         keyHex,
         ivHex,
         createdAt: new Date().toISOString(),
+        fileName: form.file.name,
+        mimeType: form.file.type || "application/octet-stream",
       };
-      setRecords((p) => [newRecord, ...p]);
+      // Persist to localStorage keyed by DID so records survive re-login
+      if (hederaIdentity?.did) {
+        const updated = addRecord(hederaIdentity.did, newRecord);
+        setRecords(updated);
+      } else {
+        setRecords((p) => [newRecord, ...p]);
+      }
       setStatus({ type: "success", ipfsCid, hcsTxId, keyHex, ivHex });
       setForm({ patientName: "", recordTitle: "", file: null });
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -574,12 +593,17 @@ export function Dashboard() {
         {/* ── Record History ── */}
         {records.length > 0 && (
           <div>
-            <h2 className="font-bold text-sm mb-4 uppercase tracking-widest" style={{ color: MUTED }}>
-              Session Records ({records.length})
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-sm uppercase tracking-widest" style={{ color: MUTED }}>
+                Hospital Records ({records.length})
+              </h2>
+              <span className="text-xs px-2.5 py-1 rounded-full" style={{ background: "rgba(0,255,163,0.08)", border: "1px solid rgba(0,255,163,0.2)", color: MINT }}>
+                Click any record to decrypt &amp; preview
+              </span>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               {records.map((record) => (
-                <RecordCard key={record.id} record={record} />
+                <RecordCard key={record.id} record={record} onPreview={setPreviewRecord} />
               ))}
             </div>
           </div>
@@ -594,6 +618,9 @@ export function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* ── Record preview modal ── */}
+      <RecordPreviewModal record={previewRecord} onClose={() => setPreviewRecord(null)} />
     </div>
   );
 }

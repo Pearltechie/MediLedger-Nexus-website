@@ -1,6 +1,8 @@
 // RecordCard — cyber-medical themed record entry.
+// Clickable: pass onPreview to open the decrypt+preview modal.
+
 import { useState } from "react";
-import { CheckCircle2, FileText, Hash, Link2, KeyRound, Copy, Check, ExternalLink } from "lucide-react";
+import { CheckCircle2, FileText, Hash, Link2, KeyRound, Copy, Check, ExternalLink, Eye } from "lucide-react";
 
 const MINT = "#00FFA3";
 const SILVER = "#E2E8F0";
@@ -17,13 +19,18 @@ export interface MedicalRecord {
   keyHex: string;
   ivHex: string;
   createdAt: string;
+  /** Original file name — used for download and MIME detection fallback */
+  fileName?: string;
+  /** Original MIME type from File.type — aids preview rendering */
+  mimeType?: string;
 }
 
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      onClick={async () => {
+      onClick={async (e) => {
+        e.stopPropagation();
         await navigator.clipboard.writeText(value);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
@@ -37,11 +44,35 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
-export function RecordCard({ record }: { record: MedicalRecord }) {
+interface RecordCardProps {
+  record: MedicalRecord;
+  /** If provided the card becomes clickable and shows a preview button */
+  onPreview?: (record: MedicalRecord) => void;
+}
+
+export function RecordCard({ record, onPreview }: RecordCardProps) {
+  const clickable = Boolean(onPreview);
+
   return (
     <div
-      className="rounded-2xl border p-5 flex flex-col gap-3 hover:border-[rgba(0,255,163,0.3)] transition-colors duration-200"
-      style={{ background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.07)" }}
+      className="rounded-2xl border p-5 flex flex-col gap-3 transition-all duration-200"
+      style={{
+        background: "rgba(255,255,255,0.02)",
+        borderColor: "rgba(255,255,255,0.07)",
+        cursor: clickable ? "pointer" : "default",
+      }}
+      onClick={() => onPreview?.(record)}
+      onMouseEnter={(e) => {
+        if (!clickable) return;
+        (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(0,255,163,0.35)";
+        (e.currentTarget as HTMLDivElement).style.background = "rgba(0,255,163,0.03)";
+        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 20px rgba(0,255,163,0.06)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.07)";
+        (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.02)";
+        (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
+      }}
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
@@ -57,19 +88,30 @@ export function RecordCard({ record }: { record: MedicalRecord }) {
             <p className="text-xs" style={{ color: MUTED }}>{record.recordTitle}</p>
           </div>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <CheckCircle2 size={13} style={{ color: MINT }} />
-          <span className="text-xs font-semibold" style={{ color: MINT }}>Verified</span>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1">
+            <CheckCircle2 size={13} style={{ color: MINT }} />
+            <span className="text-xs font-semibold" style={{ color: MINT }}>Verified</span>
+          </div>
+          {clickable && (
+            <div
+              className="flex items-center gap-1 rounded-full px-2 py-0.5"
+              style={{ background: MINT_GLASS, border: `1px solid ${MINT_BORDER}` }}
+            >
+              <Eye size={11} style={{ color: MINT }} />
+              <span className="text-xs" style={{ color: MINT }}>Preview</span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Key */}
+      {/* Key (truncated) */}
       <div className="rounded-xl p-3" style={{ background: "rgba(255,193,7,0.05)", border: "1px solid rgba(255,193,7,0.15)" }}>
         <div className="flex items-center gap-1 mb-1">
           <KeyRound size={11} style={{ color: "#FFC107" }} />
           <span className="text-xs font-bold" style={{ color: "#FFC107" }}>Decryption Key</span>
         </div>
-        <div className="flex items-start gap-1">
+        <div className="flex items-start gap-1" onClick={(e) => e.stopPropagation()}>
           <p className="font-mono text-xs break-all flex-1" style={{ color: "#A37F00" }}>{record.keyHex.slice(0, 32)}…</p>
           <CopyButton value={record.keyHex} />
         </div>
@@ -81,13 +123,14 @@ export function RecordCard({ record }: { record: MedicalRecord }) {
           <Hash size={11} style={{ color: MUTED }} />
           <span className="text-xs font-medium uppercase tracking-wide" style={{ color: MUTED }}>IPFS CID</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <a
             href={`https://gateway.pinata.cloud/ipfs/${record.ipfsCid}`}
             target="_blank"
             rel="noopener noreferrer"
             className="font-mono text-xs break-all flex-1 hover:underline"
             style={{ color: MINT }}
+            onClick={(e) => e.stopPropagation()}
           >
             {record.ipfsCid.slice(0, 20)}…
           </a>
@@ -101,7 +144,7 @@ export function RecordCard({ record }: { record: MedicalRecord }) {
           <Link2 size={11} style={{ color: MUTED }} />
           <span className="text-xs font-medium uppercase tracking-wide" style={{ color: MUTED }}>HCS Transaction</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <p className="font-mono text-xs break-all flex-1" style={{ color: SILVER }}>{record.hcsTransactionId}</p>
           <CopyButton value={record.hcsTransactionId} />
         </div>
@@ -111,15 +154,21 @@ export function RecordCard({ record }: { record: MedicalRecord }) {
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 mt-1 text-xs font-semibold hover:opacity-80 transition"
           style={{ color: MINT }}
+          onClick={(e) => e.stopPropagation()}
         >
           <ExternalLink size={10} />
           View Proof of Truth on HashScan
         </a>
       </div>
 
-      <p className="text-xs text-right" style={{ color: "#1E293B" }}>
-        {new Date(record.createdAt).toLocaleString()}
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs" style={{ color: "#1E293B" }}>
+          {new Date(record.createdAt).toLocaleString()}
+        </p>
+        {record.fileName && (
+          <p className="text-xs" style={{ color: "#1E293B" }}>{record.fileName}</p>
+        )}
+      </div>
     </div>
   );
 }
