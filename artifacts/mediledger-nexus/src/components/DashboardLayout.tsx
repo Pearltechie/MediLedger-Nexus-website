@@ -10,8 +10,6 @@ import {
   MessageSquare,
   Sparkles,
   LogOut,
-  Menu,
-  X,
   Fingerprint,
   Wallet,
   ChevronRight,
@@ -91,7 +89,6 @@ function NavButton({ item, active, onClick }: { item: NavItem; active: boolean; 
 }
 
 export function DashboardLayout({ activePage, onNavigate, hospitalName, hederaIdentity, walletAddress, onLogout, children }: Props) {
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   const shortWallet = walletAddress
     ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
@@ -148,15 +145,16 @@ export function DashboardLayout({ activePage, onNavigate, hospitalName, hederaId
             key={item.id}
             item={item}
             active={activePage === item.id}
-            onClick={() => { onNavigate(item.id); setMobileOpen(false); }}
+            onClick={() => onNavigate(item.id)}
           />
         ))}
       </nav>
 
-      {/* ARIA status */}
+      {/* ARIA status — clickable shortcut to the ARIA page */}
       <div className="px-3 pb-3">
-        <div
-          className="rounded-xl p-3 flex items-center gap-2.5 mb-3"
+        <button
+          onClick={() => onNavigate("aria")}
+          className="w-full rounded-xl p-3 flex items-center gap-2.5 mb-3 transition-all duration-200 hover:opacity-80"
           style={{ background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.15)" }}
         >
           <motion.div
@@ -170,7 +168,7 @@ export function DashboardLayout({ activePage, onNavigate, hospitalName, hederaId
             <p className="text-xs" style={{ color: "rgba(167,139,250,0.6)" }}>AI Agent · Standby</p>
           </div>
           <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#A78BFA" }} />
-        </div>
+        </button>
       </div>
 
       {/* Identity + Logout */}
@@ -240,67 +238,18 @@ export function DashboardLayout({ activePage, onNavigate, hospitalName, hederaId
         />
       </div>
 
-      {/* ── Desktop Sidebar ── */}
+      {/* ── Sidebar — always visible ── */}
       <aside
-        className="hidden lg:flex flex-col w-64 flex-shrink-0 border-r relative z-10"
+        className="flex flex-col w-56 flex-shrink-0 border-r relative z-10"
         style={{ background: SIDEBAR_BG, borderColor: GLASS_BORDER }}
       >
         <SidebarContent />
       </aside>
 
-      {/* ── Mobile Sidebar Drawer ── */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40 lg:hidden"
-              style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
-              onClick={() => setMobileOpen(false)}
-            />
-            <motion.aside
-              initial={{ x: -280 }}
-              animate={{ x: 0 }}
-              exit={{ x: -280 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="fixed left-0 top-0 bottom-0 z-50 w-64 flex flex-col border-r lg:hidden"
-              style={{ background: SIDEBAR_BG, borderColor: GLASS_BORDER }}
-            >
-              <button
-                onClick={() => setMobileOpen(false)}
-                className="absolute top-4 right-4 p-1.5 rounded-lg transition"
-                style={{ color: MUTED }}
-              >
-                <X size={16} />
-              </button>
-              <SidebarContent />
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
-
       {/* ── Main content area ── */}
       <div className="flex-1 flex flex-col overflow-hidden relative z-10">
 
-        {/* Mobile top bar */}
-        <header
-          className="lg:hidden flex items-center gap-3 px-4 py-3 border-b flex-shrink-0"
-          style={{ background: "rgba(7,10,14,0.95)", borderColor: GLASS_BORDER, backdropFilter: "blur(12px)" }}
-        >
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="p-2 rounded-lg transition"
-            style={{ color: MUTED }}
-          >
-            <Menu size={18} />
-          </button>
-          <img src={logoUrl} alt="MediLedger" className="h-7 w-auto" />
-          <span className="text-sm font-bold truncate" style={{ color: SILVER }}>
-            {hospitalName ?? "MediLedger Nexus"}
-          </span>
-        </header>
+        {/* Mobile top bar — hidden since sidebar is always visible */}
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">
