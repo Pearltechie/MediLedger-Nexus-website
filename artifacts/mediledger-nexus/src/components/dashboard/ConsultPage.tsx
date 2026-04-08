@@ -34,7 +34,7 @@ import {
   addConsent,
   updateConsent,
 } from "@/lib/consentStore";
-import { submitConsentToHCS, fetchConsentTopicId } from "@/lib/consent";
+import { submitConsentToHCS, fetchConsentTopicId, syncConsentsFromHCS } from "@/lib/consent";
 
 const AMBER = "#F59E0B";
 const MINT = "#00FFA3";
@@ -290,6 +290,7 @@ interface NewRequestForm {
   targetHospitalDid: string;
   targetHospitalName: string;
   patientDid: string;
+  patientName: string;
   purpose: string;
   durationDays: number;
 }
@@ -311,13 +312,12 @@ function NewRequestModal({
     targetHospitalDid: "",
     targetHospitalName: "",
     patientDid: "",
+    patientName: "",
     purpose: "",
     durationDays: 7,
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-
-  const selectedPatient = patients.find((p) => p.did === form.patientDid);
 
   const inputStyle = {
     background: AMBER_GLASS,
@@ -332,8 +332,9 @@ function NewRequestModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.targetHospitalDid.trim() || !form.patientDid || !form.purpose.trim()) return;
-    if (!selectedPatient) return;
+    const patientDid = form.patientDid.trim();
+    const patientName = form.patientName.trim();
+    if (!form.targetHospitalDid.trim() || !patientDid || !patientName || !form.purpose.trim()) return;
 
     setSubmitting(true);
     setError("");
@@ -350,8 +351,8 @@ function NewRequestModal({
         requesterName: myName,
         ownerDid: form.targetHospitalDid.trim(),
         ownerName: form.targetHospitalName.trim() || "Unknown Hospital",
-        patientDid: form.patientDid,
-        patientName: selectedPatient.fullName,
+        patientDid,
+        patientName,
         purpose: form.purpose.trim(),
         timestamp: now,
         accessDurationDays: form.durationDays,
@@ -368,8 +369,8 @@ function NewRequestModal({
       requesterName: myName,
       ownerDid: form.targetHospitalDid.trim(),
       ownerName: form.targetHospitalName.trim() || "Unknown Hospital",
-      patientDid: form.patientDid,
-      patientName: selectedPatient.fullName,
+      patientDid,
+      patientName,
       purpose: form.purpose.trim(),
       status: "pending",
       accessDurationDays: form.durationDays,
@@ -450,29 +451,59 @@ function NewRequestModal({
               />
             </div>
 
-            {/* Patient */}
-            <div>
-              <label className="block text-xs font-bold mb-1.5 uppercase tracking-widest" style={{ color: AMBER }}>
-                Patient *
-              </label>
-              {patients.length > 0 ? (
-                <select
-                  value={form.patientDid}
-                  onChange={(e) => setForm((p) => ({ ...p, patientDid: e.target.value }))}
-                  required
-                  className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all appearance-none"
-                  style={{ ...inputStyle, colorScheme: "dark", color: form.patientDid ? SILVER : MUTED }}
-                  onFocus={onFocus} onBlur={onBlur}
-                >
-                  <option value="" disabled>Select a registered patient…</option>
-                  {patients.map((p) => (
-                    <option key={p.id} value={p.did}>{p.fullName} — {p.dateOfBirth}</option>
-                  ))}
-                </select>
-              ) : (
-                <p className="text-xs rounded-xl px-4 py-3" style={{ background: GLASS_BG, border: `1px solid ${GLASS_BORDER}`, color: MUTED }}>
-                  No patients registered. Register patients first in the Patients tab.
-                </p>
+            {/* Patient — manual entry with optional quick-fill */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold uppercase tracking-widest" style={{ color: AMBER }}>
+                  Patient *
+                </label>
+                <span className="text-xs" style={{ color: MUTED }}>
+                  Enter the patient's details at Hospital B
+                </span>
+              </div>
+
+              {/* Patient name */}
+              <input type="text"
+                value={form.patientName}
+                onChange={(e) => setForm((p) => ({ ...p, patientName: e.target.value }))}
+                placeholder="Patient full name"
+                required
+                className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
+                style={inputStyle} onFocus={onFocus} onBlur={onBlur}
+              />
+
+              {/* Patient DID */}
+              <input type="text"
+                value={form.patientDid}
+                onChange={(e) => setForm((p) => ({ ...p, patientDid: e.target.value }))}
+                placeholder="did:mediledger:patient:… (copy from patient profile)"
+                required
+                className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all font-mono"
+                style={inputStyle} onFocus={onFocus} onBlur={onBlur}
+              />
+
+              {/* Optional quick-fill from own registry */}
+              {patients.length > 0 && (
+                <div>
+                  <p className="text-xs mb-1" style={{ color: MUTED }}>
+                    Or quick-fill from your own registry:
+                  </p>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const p = patients.find((pt) => pt.did === e.target.value);
+                      if (p) setForm((prev) => ({ ...prev, patientDid: p.did, patientName: p.fullName }));
+                    }}
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all appearance-none"
+                    style={{ ...inputStyle, colorScheme: "dark", color: MUTED }}
+                    onFocus={onFocus} onBlur={onBlur}
+                  >
+                    <option value="">Select a patient to auto-fill…</option>
+                    {patients.map((p) => (
+                      <option key={p.id} value={p.did}>{p.fullName} — {p.dateOfBirth}</option>
+                    ))}
+                  </select>
+                </div>
               )}
             </div>
 
@@ -528,7 +559,7 @@ function NewRequestModal({
         <div className="px-6 py-4 border-t flex-shrink-0" style={{ borderColor: GLASS_BORDER }}>
           <motion.button
             form="new-request-form" type="submit"
-            disabled={submitting || !form.patientDid || !form.targetHospitalDid.trim() || !form.purpose.trim()}
+            disabled={submitting || !form.patientDid.trim() || !form.patientName.trim() || !form.targetHospitalDid.trim() || !form.purpose.trim()}
             whileHover={!submitting ? { scale: 1.01 } : {}}
             whileTap={!submitting ? { scale: 0.98 } : {}}
             className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
@@ -570,9 +601,18 @@ export function ConsultPage({ patients, hospitalDid, hospitalName }: Props) {
 
   useEffect(() => {
     fetchConsentTopicId()
-      .then(setConsentTopic)
+      .then((topicId) => {
+        setConsentTopic(topicId);
+        // Once we have the real topic ID, sync incoming consents from the
+        // Hedera mirror node so cross-browser requests become visible.
+        if (hospitalDid) {
+          syncConsentsFromHCS(topicId, hospitalDid)
+            .then(() => setConsents(loadConsents(hospitalDid)))
+            .catch(() => {}); // fail silently — localStorage state still works
+        }
+      })
       .catch((err: unknown) => setTopicError(err instanceof Error ? err.message : String(err)));
-  }, []);
+  }, [hospitalDid]);
 
   const incoming = consents.filter((c) => c.ownerDid === hospitalDid && c.status === "pending");
   const outgoing = consents.filter((c) => c.requesterDid === hospitalDid);
