@@ -68,13 +68,7 @@ interface LoginPayload {
 }
 
 // ─── Step 1 — Web3Auth login ──────────────────────────────────────────────────
-function LoginStep({
-  onSuccess,
-  onDemo,
-}: {
-  onSuccess: (p: LoginPayload) => void;
-  onDemo: () => void;
-}) {
+function LoginStep({ onSuccess }: { onSuccess: (p: LoginPayload) => void }) {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [error, setError] = useState("");
 
@@ -144,15 +138,6 @@ function LoginStep({
         <Wallet size={16} />
         Connect with Web3Auth
       </MintButton>
-
-      {/* Demo bypass — lets judges and reviewers explore without Web3Auth */}
-      <button
-        onClick={onDemo}
-        className="w-full mt-3 py-3 rounded-xl text-sm font-semibold transition-all duration-200 hover:opacity-80"
-        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: MUTED }}
-      >
-        Try Demo — skip login
-      </button>
 
       {error && (
         <div className="mt-4 flex items-start gap-2 rounded-lg p-3" style={{ background: "rgba(255,59,48,0.08)", border: "1px solid rgba(255,59,48,0.2)" }}>
@@ -353,23 +338,6 @@ export function AuthPage() {
   const [step, setStep] = useState<AuthStep>("login");
   const [loginPayload, setLoginPayload] = useState<LoginPayload | null>(null);
 
-  const handleDemoAccess = () => {
-    const demoIdentity = {
-      identityKey: "demo-mode",
-      email: "demo@mediledger.nexus",
-      walletAddress: "0xDEMO000000000000000000000000000000000000",
-      accountId: "0.0.demo",
-      did: "did:hedera:testnet:0.0.demo",
-      hospitalName: "Demo Hospital — EasyA × Consensus",
-      createdAt: new Date().toISOString(),
-      status: "Existing Identity" as const,
-    };
-    setAuth("0xDEMO000000000000000000000000000000000000", "demo@mediledger.nexus");
-    setHederaIdentity(demoIdentity);
-    setHospital(demoIdentity.hospitalName);
-    setLocation("/dashboard");
-  };
-
   const handleLoginSuccess = async (payload: LoginPayload) => {
     setLoginPayload(payload);
     setAuth(payload.address, payload.email);
@@ -451,7 +419,7 @@ export function AuthPage() {
         style={{ background: GLASS_BG, border: `1px solid ${GLASS_BORDER}`, backdropFilter: "blur(20px)", boxShadow: "0 0 60px rgba(0,255,163,0.05), 0 25px 50px rgba(0,0,0,0.5)" }}
       >
         <AnimatePresence mode="wait">
-          {step === "login" && <LoginStep key="login" onSuccess={handleLoginSuccess} onDemo={handleDemoAccess} />}
+          {step === "login" && <LoginStep key="login" onSuccess={handleLoginSuccess} />}
           {step === "checking" && <CheckingStep key="checking" />}
           {step === "register" && <RegisterStep key="register" loginPayload={loginPayload!} onSuccess={handleRegisterSuccess} />}
         </AnimatePresence>
