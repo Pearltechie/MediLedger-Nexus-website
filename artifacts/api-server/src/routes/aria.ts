@@ -151,11 +151,14 @@ router.post("/aria/chat", async (req: Request, res: Response) => {
     const lastUserMsg = [...validMessages].reverse().find((m) => m.role === "user");
     const question = lastUserMsg?.content ?? "";
 
+    // Strip any extra fields (e.g. `proof`) — Anthropic only accepts role + content
+    const anthropicMessages = validMessages.map(({ role, content }) => ({ role, content }));
+
     const stream = anthropic.messages.stream({
       model: "claude-sonnet-4-6",
       max_tokens: 8192,
       system: systemPrompt,
-      messages: validMessages,
+      messages: anthropicMessages,
     });
 
     let fullResponse = "";
