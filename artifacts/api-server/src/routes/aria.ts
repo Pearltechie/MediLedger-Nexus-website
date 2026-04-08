@@ -1,5 +1,16 @@
+// ARIA — Autonomous Record Intelligence Agent
+// Streaming Claude endpoint that anchors each AI summary on Hedera HCS as
+// cryptographic proof of the consultation.
+
 import { Router, type IRouter, type Request, type Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  ensureTopic,
+  submitToTopic,
+  sha256Hex,
+  getHederaCreds,
+  ARIA_TOPIC_CACHE,
+} from "../lib/hederaClient.js";
 
 const router: IRouter = Router();
 
@@ -30,7 +41,7 @@ RESPONSE FORMAT:
 
 PLATFORM CONTEXT:
 - Patient records are AES-256-GCM encrypted and stored on IPFS; CIDs anchored to Hedera HCS
-- Every consultation you assist with generates a cryptographic proof on-chain
+- Every consultation you assist with is automatically anchored to Hedera HCS as cryptographic proof
 - You are operating inside a consent-gated environment — hospitals that share data have explicitly granted access
 - This is a Hedera Hashgraph-powered platform built for EasyA × Consensus Miami 2025
 
@@ -39,11 +50,9 @@ When the user provides patient context, begin your responses with a brief acknow
 function buildAnthropicClient(): Anthropic {
   const baseURL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
   const apiKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
-
   if (!baseURL || !apiKey) {
     throw new Error("Anthropic AI integration not configured. Ensure AI_INTEGRATIONS_ANTHROPIC_BASE_URL and AI_INTEGRATIONS_ANTHROPIC_API_KEY are set.");
   }
-
   return new Anthropic({ baseURL, apiKey });
 }
 
@@ -58,8 +67,50 @@ interface ARIAChatBody {
   };
 }
 
+// Anchors the ARIA summary on Hedera HCS as proof-of-consultation.
+// Returns {hcsTxId, summaryHash, ariaTopic} — or null if Hedera is unavailable.
+async function anchorOnHedera(
+  summaryText: string,
+  patientDid: string | undefined,
+  question: string
+): Promise<{ hcsTxId: string; summaryHash: string; ariaTopic: string } | null> {
+  try {
+    const { accountId, privateKeyRaw } = getHederaCreds();
+
+    const ariaTopic = await ensureTopic(accountId, privateKeyRaw, {
+      cacheFile: ARIA_TOPIC_CACHE,
+      envVar: "VITE_HEDERA_ARIA_TOPIC_ID",
+      memo: "MediLedger Nexus — ARIA Summaries Ledger",
+      logLabel: "ARIA topic",
+    });
+
+    const summaryHash = sha256Hex(summaryText);
+    const timestamp = new Date().toISOString();
+
+    const payload = JSON.stringify({
+      type: "ARIA_SUMMARY",
+      version: "1.0",
+      timestamp,
+      summaryHash,
+      patientDid: patientDid ?? null,
+      questionPreview: question.slice(0, 120),
+      model: "claude-sonnet-4-6",
+      platform: "MediLedger Nexus",
+    });
+
+    const hcsTxId = await submitToTopic(accountId, privateKeyRaw, ariaTopic, payload);
+    console.log(`[aria] Summary anchored on Hedera: ${hcsTxId} (hash: ${summaryHash.slice(0, 16)}…)`);
+
+    return { hcsTxId, summaryHash, ariaTopic };
+  } catch (err) {
+    console.warn("[aria] Hedera anchoring failed (non-fatal):", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 // POST /aria/chat
-// Streaming SSE endpoint. Sends incremental text chunks as they arrive from Claude.
+// Streams Claude response as SSE. After the stream completes, anchors the
+// summary on the ARIA Hedera topic and emits {done, hcsTxId, summaryHash, ariaTopic}.
 router.post("/aria/chat", async (req: Request, res: Response) => {
   const body = req.body as ARIAChatBody;
 
@@ -77,8 +128,8 @@ router.post("/aria/chat", async (req: Request, res: Response) => {
     return;
   }
 
+  // Build system prompt with optional patient context injection
   let systemPrompt = ARIA_SYSTEM_PROMPT;
-
   if (body.patientContext) {
     const { name, did, recordSummaries } = body.patientContext;
     systemPrompt += `\n\n--- ACTIVE PATIENT CONTEXT ---\nPatient: ${name}\nDID: ${did}`;
@@ -96,6 +147,10 @@ router.post("/aria/chat", async (req: Request, res: Response) => {
   try {
     const anthropic = buildAnthropicClient();
 
+    // Extract the last user question for the HCS anchor preview
+    const lastUserMsg = [...validMessages].reverse().find((m) => m.role === "user");
+    const question = lastUserMsg?.content ?? "";
+
     const stream = anthropic.messages.stream({
       model: "claude-sonnet-4-6",
       max_tokens: 8192,
@@ -103,13 +158,31 @@ router.post("/aria/chat", async (req: Request, res: Response) => {
       messages: validMessages,
     });
 
+    let fullResponse = "";
+
+    // Stream tokens to client
     for await (const event of stream) {
       if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        fullResponse += event.delta.text;
         res.write(`data: ${JSON.stringify({ content: event.delta.text })}\n\n`);
       }
     }
 
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    // Signal to client that streaming is done and anchoring has started
+    res.write(`data: ${JSON.stringify({ anchoring: true })}\n\n`);
+
+    // Anchor the completed summary on Hedera HCS
+    const proof = await anchorOnHedera(fullResponse, body.patientContext?.did, question);
+
+    // Final SSE event — includes Hedera proof if available
+    res.write(`data: ${JSON.stringify({
+      done: true,
+      ...(proof && {
+        hcsTxId: proof.hcsTxId,
+        summaryHash: proof.summaryHash,
+        ariaTopic: proof.ariaTopic,
+      }),
+    })}\n\n`);
     res.end();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";

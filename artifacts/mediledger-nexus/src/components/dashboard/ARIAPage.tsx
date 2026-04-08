@@ -5,7 +5,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain, Sparkles, Send, User, ShieldCheck, ChevronDown, X,
-  AlertTriangle, Loader2, RotateCcw, Hash,
+  AlertTriangle, Loader2, RotateCcw, Hash, ExternalLink, Link,
 } from "lucide-react";
 import { type Patient } from "@/lib/patientStore";
 import { loadRecords } from "@/lib/recordStore";
@@ -18,9 +18,16 @@ const GLASS_BORDER = "rgba(255,255,255,0.07)";
 const VIOLET = "#A78BFA";
 const MINT = "#00FFA3";
 
+interface HederaProof {
+  hcsTxId: string;
+  summaryHash: string;
+  ariaTopic: string;
+}
+
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  proof?: HederaProof;
 }
 
 interface ARIAPageProps {
@@ -58,7 +65,85 @@ function ARIAOrb({ thinking }: { thinking: boolean }) {
   );
 }
 
-function MessageBubble({ msg, isStreaming }: { msg: ChatMessage; isStreaming?: boolean }) {
+function HederaProofBadge({ proof, anchoring }: { proof?: HederaProof; anchoring?: boolean }) {
+  if (anchoring) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px]"
+        style={{ background: "rgba(167,139,250,0.04)", border: "1px solid rgba(167,139,250,0.12)" }}
+      >
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+        >
+          <Loader2 size={9} style={{ color: VIOLET }} />
+        </motion.div>
+        <span style={{ color: "rgba(167,139,250,0.6)" }}>Anchoring on Hedera HCS…</span>
+      </motion.div>
+    );
+  }
+  if (!proof) return null;
+
+  const explorerUrl = `https://hashscan.io/testnet/transaction/${proof.hcsTxId}`;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mt-2 rounded-lg overflow-hidden"
+      style={{ border: "1px solid rgba(0,255,163,0.15)" }}
+    >
+      <div className="flex items-center gap-1.5 px-2.5 py-1.5"
+        style={{ background: "rgba(0,255,163,0.05)" }}>
+        <ShieldCheck size={9} style={{ color: MINT }} />
+        <span className="text-[10px] font-bold" style={{ color: MINT }}>Anchored on Hedera HCS</span>
+        <a
+          href={explorerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ml-auto flex items-center gap-0.5 hover:opacity-80 transition-opacity"
+          style={{ color: MINT }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="text-[9px]">View on HashScan</span>
+          <ExternalLink size={8} />
+        </a>
+      </div>
+      <div className="px-2.5 py-1.5 space-y-0.5" style={{ background: "rgba(0,255,163,0.02)" }}>
+        <div className="flex items-start gap-1.5">
+          <span className="text-[9px] font-bold flex-shrink-0 mt-0.5" style={{ color: MUTED }}>TX</span>
+          <span className="text-[9px] font-mono break-all" style={{ color: "rgba(226,232,240,0.5)" }}>
+            {proof.hcsTxId}
+          </span>
+        </div>
+        <div className="flex items-start gap-1.5">
+          <span className="text-[9px] font-bold flex-shrink-0 mt-0.5" style={{ color: MUTED }}>SHA256</span>
+          <span className="text-[9px] font-mono" style={{ color: "rgba(226,232,240,0.5)" }}>
+            {proof.summaryHash.slice(0, 32)}…
+          </span>
+        </div>
+        <div className="flex items-start gap-1.5">
+          <span className="text-[9px] font-bold flex-shrink-0 mt-0.5" style={{ color: MUTED }}>TOPIC</span>
+          <span className="text-[9px] font-mono" style={{ color: "rgba(226,232,240,0.5)" }}>
+            {proof.ariaTopic}
+          </span>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function MessageBubble({
+  msg,
+  isStreaming,
+  isAnchoring,
+}: {
+  msg: ChatMessage;
+  isStreaming?: boolean;
+  isAnchoring?: boolean;
+}) {
   const isUser = msg.role === "user";
   return (
     <motion.div
@@ -74,22 +159,27 @@ function MessageBubble({ msg, isStreaming }: { msg: ChatMessage; isStreaming?: b
       ) : (
         <ARIAOrb thinking={isStreaming ?? false} />
       )}
-      <div
-        className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${isUser ? "rounded-tr-sm" : "rounded-tl-sm"}`}
-        style={{
-          background: isUser ? "rgba(0,255,163,0.06)" : "rgba(167,139,250,0.06)",
-          border: `1px solid ${isUser ? "rgba(0,255,163,0.15)" : "rgba(167,139,250,0.15)"}`,
-          color: SILVER,
-        }}
-      >
-        {msg.content}
-        {isStreaming && (
-          <motion.span
-            animate={{ opacity: [1, 0] }}
-            transition={{ duration: 0.6, repeat: Infinity }}
-            className="inline-block w-0.5 h-3.5 ml-0.5 align-middle rounded-full"
-            style={{ background: VIOLET }}
-          />
+      <div className={`max-w-[75%] ${isUser ? "" : "flex-1"}`}>
+        <div
+          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${isUser ? "rounded-tr-sm" : "rounded-tl-sm"}`}
+          style={{
+            background: isUser ? "rgba(0,255,163,0.06)" : "rgba(167,139,250,0.06)",
+            border: `1px solid ${isUser ? "rgba(0,255,163,0.15)" : "rgba(167,139,250,0.15)"}`,
+            color: SILVER,
+          }}
+        >
+          {msg.content}
+          {isStreaming && (
+            <motion.span
+              animate={{ opacity: [1, 0] }}
+              transition={{ duration: 0.6, repeat: Infinity }}
+              className="inline-block w-0.5 h-3.5 ml-0.5 align-middle rounded-full"
+              style={{ background: VIOLET }}
+            />
+          )}
+        </div>
+        {!isUser && (
+          <HederaProofBadge proof={msg.proof} anchoring={isAnchoring} />
         )}
       </div>
     </motion.div>
@@ -103,6 +193,7 @@ export function ARIAPage({ patients }: ARIAPageProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
+  const [isAnchoring, setIsAnchoring] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
@@ -119,13 +210,13 @@ export function ARIAPage({ patients }: ARIAPageProps) {
   function getPatientContext() {
     if (!selectedPatient) return undefined;
     const records = loadRecords(hospitalDid).filter(
-      (r) => r.patientDid === selectedPatient.did || r.patientName === selectedPatient.name
+      (r) => r.patientDid === selectedPatient.did || r.patientName === selectedPatient.fullName
     );
     const summaries = records.map(
       (r) => `${r.recordTitle} (uploaded ${new Date(r.createdAt).toLocaleDateString()}) — IPFS CID: ${r.ipfsCid} — HCS TX: ${r.hcsTransactionId}`
     );
     return {
-      name: selectedPatient.name,
+      name: selectedPatient.fullName,
       did: selectedPatient.did,
       recordSummaries: summaries,
     };
@@ -140,6 +231,7 @@ export function ARIAPage({ patients }: ARIAPageProps) {
     setMessages(updatedMessages);
     setInput("");
     setIsThinking(true);
+    setIsAnchoring(false);
     setStreamingContent("");
 
     if (textareaRef.current) {
@@ -167,8 +259,9 @@ export function ARIAPage({ patients }: ARIAPageProps) {
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
       let fullContent = "";
+      let proof: HederaProof | undefined;
 
-      while (true) {
+      outer: while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
@@ -176,10 +269,30 @@ export function ARIAPage({ patients }: ARIAPageProps) {
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           try {
-            const data = JSON.parse(line.slice(6)) as { content?: string; done?: boolean; error?: string };
+            const data = JSON.parse(line.slice(6)) as {
+              content?: string;
+              anchoring?: boolean;
+              done?: boolean;
+              error?: string;
+              hcsTxId?: string;
+              summaryHash?: string;
+              ariaTopic?: string;
+            };
             if (data.error) throw new Error(data.error);
-            if (data.done) break;
-            if (data.content) {
+            if (data.anchoring) {
+              // Streaming complete — server is now anchoring on Hedera HCS
+              setIsThinking(false);
+              setIsAnchoring(true);
+            } else if (data.done) {
+              if (data.hcsTxId && data.summaryHash && data.ariaTopic) {
+                proof = {
+                  hcsTxId: data.hcsTxId,
+                  summaryHash: data.summaryHash,
+                  ariaTopic: data.ariaTopic,
+                };
+              }
+              break outer;
+            } else if (data.content) {
               fullContent += data.content;
               setStreamingContent(fullContent);
             }
@@ -191,13 +304,14 @@ export function ARIAPage({ patients }: ARIAPageProps) {
         }
       }
 
-      setMessages((prev) => [...prev, { role: "assistant", content: fullContent }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: fullContent, proof }]);
       setStreamingContent("");
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setIsThinking(false);
+      setIsAnchoring(false);
       setStreamingContent("");
     }
   }
@@ -220,6 +334,7 @@ export function ARIAPage({ patients }: ARIAPageProps) {
     setMessages([]);
     setStreamingContent("");
     setIsThinking(false);
+    setIsAnchoring(false);
     setError(null);
   }
 
@@ -271,7 +386,7 @@ export function ARIAPage({ patients }: ARIAPageProps) {
                 {selectedPatient ? (
                   <>
                     <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: MINT }} />
-                    {selectedPatient.name}
+                    {selectedPatient.fullName}
                   </>
                 ) : "Select patient context"}
                 <ChevronDown size={12} />
@@ -299,7 +414,7 @@ export function ARIAPage({ patients }: ARIAPageProps) {
                         className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 transition-colors border-t"
                         style={{ color: SILVER, borderColor: GLASS_BORDER }}
                       >
-                        <div className="font-medium">{p.name}</div>
+                        <div className="font-medium">{p.fullName}</div>
                         <div className="font-mono mt-0.5 truncate" style={{ color: MUTED, fontSize: "10px" }}>
                           {p.did.slice(0, 40)}…
                         </div>
@@ -335,7 +450,7 @@ export function ARIAPage({ patients }: ARIAPageProps) {
                 style={{ background: "rgba(167,139,250,0.05)", border: "1px solid rgba(167,139,250,0.15)" }}>
                 <ShieldCheck size={12} style={{ color: MINT, flexShrink: 0 }} />
                 <span style={{ color: MUTED }}>Patient context active:</span>
-                <span className="font-bold" style={{ color: SILVER }}>{selectedPatient.name}</span>
+                <span className="font-bold" style={{ color: SILVER }}>{selectedPatient.fullName}</span>
                 <Hash size={10} style={{ color: MUTED }} />
                 <span className="font-mono text-[10px] truncate" style={{ color: MUTED }}>
                   {selectedPatient.did.slice(-24)}
@@ -412,10 +527,11 @@ export function ARIAPage({ patients }: ARIAPageProps) {
           <MessageBubble key={i} msg={msg} isStreaming={false} />
         ))}
 
-        {isThinking && streamingContent && (
+        {(isThinking || isAnchoring) && streamingContent && (
           <MessageBubble
             msg={{ role: "assistant", content: streamingContent }}
-            isStreaming={true}
+            isStreaming={isThinking && !isAnchoring}
+            isAnchoring={isAnchoring}
           />
         )}
 
