@@ -3,6 +3,8 @@
 // directly in a browser — it requires Node.js native networking.
 
 import { Router, type IRouter } from "express";
+import fs from "node:fs";
+import path from "node:path";
 import {
   Client,
   TopicMessageSubmitTransaction,
@@ -16,8 +18,11 @@ import {
 
 const router: IRouter = Router();
 
-// Cached consent topic ID — created once per server lifetime, reused for all
-// consent events (REQUEST / APPROVE / DENY / REVOKE).
+// Persistence path for consent topic ID — survives server restarts.
+// process.cwd() = artifacts/api-server when run via pnpm --filter
+const TOPIC_CACHE_FILE = path.join(process.cwd(), ".consent-topic-id");
+
+// In-memory cache — populated on first call then reused.
 let consentTopicId: string | null = null;
 
 // Fetch the account's on-chain public key from the Mirror Node.
@@ -85,10 +90,39 @@ async function buildClient(accountId: string, privateKeyRaw: string): Promise<{ 
   return { client, privateKey: matchedKey };
 }
 
-// Creates a new HCS topic and caches its ID for subsequent consent submissions.
+// Resolves the consent topic ID using a 3-layer fallback so the same topic
+// is always used regardless of server restarts or redeployments:
+//   1. In-memory cache (fastest — within a single server lifetime)
+//   2. Disk cache file (survives restarts — written on first topic creation)
+//   3. Environment variable VITE_HEDERA_CONSENT_TOPIC_ID (set manually after first run)
+//   4. Create a brand-new topic on Hedera (only on first ever boot)
 async function ensureConsentTopic(accountId: string, privateKeyRaw: string): Promise<string> {
+  // Layer 1 — memory
   if (consentTopicId) return consentTopicId;
 
+  // Layer 2 — disk cache
+  try {
+    const cached = fs.readFileSync(TOPIC_CACHE_FILE, "utf-8").trim();
+    if (cached) {
+      consentTopicId = cached;
+      console.log(`[hedera] Loaded consent topic from disk cache: ${consentTopicId}`);
+      return consentTopicId;
+    }
+  } catch {
+    // file doesn't exist yet — continue
+  }
+
+  // Layer 3 — environment variable
+  const envTopic = process.env.VITE_HEDERA_CONSENT_TOPIC_ID?.trim();
+  if (envTopic) {
+    consentTopicId = envTopic;
+    console.log(`[hedera] Loaded consent topic from env: ${consentTopicId}`);
+    // Write to disk so future restarts skip the env lookup
+    try { fs.writeFileSync(TOPIC_CACHE_FILE, consentTopicId, "utf-8"); } catch { /* ignore */ }
+    return consentTopicId;
+  }
+
+  // Layer 4 — create a new topic on Hedera
   let client: Client | null = null;
   try {
     const built = await buildClient(accountId, privateKeyRaw);
@@ -107,7 +141,11 @@ async function ensureConsentTopic(accountId: string, privateKeyRaw: string): Pro
     if (!newTopicId) throw new Error("Topic creation returned no topicId.");
 
     consentTopicId = newTopicId;
-    console.log(`[hedera] Created consent topic: ${consentTopicId}`);
+    console.log(`[hedera] Created new consent topic: ${consentTopicId}`);
+
+    // Persist to disk so this topic is reused after restarts
+    try { fs.writeFileSync(TOPIC_CACHE_FILE, consentTopicId, "utf-8"); } catch { /* ignore */ }
+
     return consentTopicId;
   } finally {
     client?.close();

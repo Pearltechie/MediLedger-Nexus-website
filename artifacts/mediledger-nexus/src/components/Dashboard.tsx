@@ -195,7 +195,7 @@ export function Dashboard() {
           />
         );
       case "aria":
-        return <ARIAPage />;
+        return <ARIAPage patients={patients} />;
     }
   };
 

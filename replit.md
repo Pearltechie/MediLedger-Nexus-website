@@ -18,40 +18,36 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ## Product Vision — MediLedger Nexus
 
-MediLedger Nexus is a **Web3-native EHR and healthcare interoperability platform**. It is not a layer on top of existing EHRs — it IS the EHR. Key product pillars:
+MediLedger Nexus is a **Web3-native EHR and healthcare interoperability platform** for EasyA × Consensus Miami 2025. Built in 4 phases, all complete:
 
-### 1. Hospital-to-Hospital Consent System (Planned)
+### Phase 1 — Dashboard UI ✅
+- Deep Obsidian (#05070A) glassmorphism design with Spectral Mint (#00FFA3) accents
+- Dashboard with Overview, Patients, Records, Consult, ARIA tabs
+
+### Phase 2 — Patient Registry + Deterministic DID ✅
+- Patient registration with `did:mediledger:patient:[sha256(name|DOB|govId)]`
+- Same patient at any hospital always produces the same DID (cross-hospital matching)
+- Records stored encrypted on IPFS, indexed by patient DID, anchored to Hedera HCS
+
+### Phase 3 — Hospital-to-Hospital Consent on Hedera HCS ✅
 - Hospital B grants Hospital A time-limited access to patient records
-- Consent is hospital-controlled (not patient-controlled)
-- Every consent action (request / approve / deny / revoke / expiry) written to a dedicated Hedera HCS consent topic: **`0.0.8554639`**
-- Access automatically expires after the time limit — no manual revocation needed
+- Every consent action written to consent topic **`0.0.8556166`** on Hedera testnet
+- Topic ID persisted to disk (`artifacts/api-server/.consent-topic-id`) — survives server restarts
+- Cross-hospital sync via Hedera mirror node polling on ConsultPage mount
+- Approve / Deny / Revoke with duration picker (24h to 90 days)
 
-### 2. Privacy-Preserving AI Consultation (Planned)
-- Hospital A never receives raw records from Hospital B
-- When consent is granted, a Claude (Anthropic) AI agent decrypts the relevant IPFS records on the server side, generates a structured clinical summary, and delivers it to Hospital A
-- The summary hash is anchored on Hedera HCS as cryptographic proof of what was shared and when
-- Summary is positioned as a **clinical decision-support tool** (not diagnostic AI) to avoid regulatory device classification
-- Fields in summary: patient overview, direct answer to clinical question, relevant history, medications, recent investigations, source CID verification, AI disclaimer
+### Phase 4 — ARIA Clinical Intelligence Engine ✅
+- ARIA = Autonomous Record Intelligence Agent powered by Claude (Anthropic via Replit AI Integrations)
+- Streaming chat UI with patient context selector
+- Backend SSE streaming endpoint: `POST /api/aria/chat`
+- Conservative medical safety posture with strict disclaimers
+- Patient records injected as context (record titles, IPFS CIDs, HCS TX IDs)
 
-### 3. Patient Identity via Deterministic DID (Planned)
-- No universal patient ID exists in most countries — MediLedger Nexus solves this without government coordination
-- At patient registration: `hash(full_legal_name + date_of_birth + government_id_number)` → deterministic patient DID
-- Format: `did:mediledger:patient:z6Mk[base58_encoded_hash]`
-- The same patient at any MediLedger Nexus hospital always produces the same DID — enabling cross-hospital record matching automatically
-- Raw PII is never stored on-chain; only the DID is anchored to Hedera
-- Patient records (full PII + medical data) are encrypted and stored on IPFS, indexed by patient DID
-- Biometrics (fingerprint / facial scan hash) can serve as a fallback or primary input to the hash function — enabling identification of patients who cannot produce documents (unconscious, undocumented, etc.)
-
-### Consultation Request Form Fields (Planned)
-- Patient name + date of birth (to generate DID)
-- Requesting physician name & department
-- Urgency: Routine / Urgent / Emergency
-- Clinical question (free text)
-- Brief clinical context (2–3 sentences)
-
-### AI Model Choice
-- **Claude (Anthropic)** — chosen for precision, structured output reliability, and conservative medical safety posture
-- Accessed via Replit AI integrations (no separate API key required)
+### Key Technical Decisions
+- **HCS Consent Topic**: `0.0.8556166` — persistent via disk cache + 3-layer fallback (memory → disk → env var → create new)
+- **Deterministic DID**: `SHA-256(name|DOB|govId)` — no coordination needed across hospitals
+- **Claude (Anthropic)**: accessed via Replit AI Integrations (no user API key required)
+- **ARIA endpoint**: `POST /api/aria/chat` — SSE streaming, system prompt with clinical safety posture
 
 ---
 
@@ -66,17 +62,24 @@ React + Vite frontend for **MediLedger Nexus** — Web3 medical identity platfor
 - **Routing**: wouter — `/` landing, `/auth` onboarding (smart: returning users skip form), `/dashboard` protected
 - **State**: Zustand + sessionStorage — tracks `isAuthenticated`, `walletAddress`, `userEmail`, `hospitalName`, `isRegistered`, `hederaIdentity`
 - **Records**: AES-256-GCM browser encryption → Pinata IPFS → Hedera HCS anchor via backend
+- **Consent**: `src/lib/consent.ts` + `src/lib/consentStore.ts` — HCS-based hospital consent system with mirror node sync
+- **ARIA**: `src/components/dashboard/ARIAPage.tsx` — streaming Claude chat with patient context injection
 - Logo: `public/logo.png` (used in nav, auth page, dashboard header)
 - Requires secrets: `VITE_PINATA_JWT`, `VITE_WEB3AUTH_CLIENT_ID`
 - Uses `vite-plugin-node-polyfills` for `@hashgraph/sdk` browser compat
 
 ### `artifacts/api-server` (`@workspace/api-server`)
 
-Express backend for Hedera SDK operations (gRPC cannot run in browsers).
+Express backend for Hedera SDK operations (gRPC cannot run in browsers) + ARIA AI.
 
 - `POST /api/hedera/submit-hcs` — anchors encrypted record to Hedera HCS
-- `POST /api/hedera/create-account` — creates a new Hedera testnet account; uses `hospitalName` from body as on-chain memo
+- `POST /api/hedera/create-account` — creates a new Hedera testnet account
+- `GET /api/hedera/consent-topic` — returns/creates HCS consent topic ID (persistent via disk cache)
+- `POST /api/hedera/submit-consent` — submits consent event to HCS topic
+- `POST /api/aria/chat` — SSE streaming endpoint calling Claude with clinical system prompt
 - Requires secrets: `VITE_HEDERA_ACCOUNT_ID`, `VITE_HEDERA_PRIVATE_KEY`, `VITE_HEDERA_TOPIC_ID`
+- Requires env vars (auto-set): `AI_INTEGRATIONS_ANTHROPIC_BASE_URL`, `AI_INTEGRATIONS_ANTHROPIC_API_KEY`
+- Consent topic cached at: `artifacts/api-server/.consent-topic-id` (do not delete)
 
 ## Structure
 
