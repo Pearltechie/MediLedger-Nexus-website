@@ -96,7 +96,7 @@ export async function createNewHederaIdentity(
   }
 
   // Ask the backend to create a Hedera account using the hospital name as the memo
-  const res = await fetch("https://mediledger-nexus-api.onrender.com", {
+  const res = await fetch("https://mediledger-nexus-api.onrender.com/api/hedera/create-account", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ hospitalName }),
