@@ -25,7 +25,7 @@ import { checkExistingIdentity, createNewHederaIdentity } from "@/lib/hederaIden
 import { useAppStore } from "@/store/appStore";
 import logoUrl from "/logo.png";
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
+// ─── Design tokens ─────────────────────────────────────���──────────────────────
 const BG = "#05070A";
 const MINT = "#00FFA3";
 const SILVER = "#E2E8F0";
@@ -203,7 +203,7 @@ function RegisterStep({
 
       // Step B — Anchor registration on HCS
       setPhase("anchoring");
-      const res = await fetch("/api/hedera/submit-hcs", {
+      const res = await fetch("https://mediledger-nexus-api.onrender.com/api/hedera/submit-hcs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
