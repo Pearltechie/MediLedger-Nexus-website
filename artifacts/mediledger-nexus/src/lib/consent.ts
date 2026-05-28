@@ -27,7 +27,7 @@ export interface ConsentHCSPayload {
 
 /** Fetches (or auto-creates) the consent ledger topic ID from the backend. */
 export async function fetchConsentTopicId(): Promise<string> {
-  const response = await fetch("/api/hedera/consent-topic");
+  const response = await fetch("https://mediledger-nexus.onrender.com");
   const data = (await response.json()) as { topicId?: string; error?: string };
   if (!response.ok || data.error) {
     throw new Error(data.error ?? `Server error: ${response.status}`);
@@ -40,7 +40,7 @@ export async function fetchConsentTopicId(): Promise<string> {
 export async function submitConsentToHCS(
   payload: ConsentHCSPayload
 ): Promise<{ transactionId: string; topicId: string }> {
-  const response = await fetch("/api/hedera/submit-consent", {
+  const response = await fetch("https://mediledger-nexus.onrender.com", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
