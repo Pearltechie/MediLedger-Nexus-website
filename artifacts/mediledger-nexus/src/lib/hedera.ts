@@ -13,7 +13,7 @@ export interface HCSMessage {
 }
 
 export async function submitToHCS(message: HCSMessage): Promise<string> {
-  const response = await fetch("https://mediledger-nexus-api.onrender.com", {
+  const response = await fetch("https://mediledger-nexus-api.onrender.com/api/hedera/submit-hcs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(message),
