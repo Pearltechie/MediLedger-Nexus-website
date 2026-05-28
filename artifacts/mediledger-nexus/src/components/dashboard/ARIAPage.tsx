@@ -283,7 +283,7 @@ export function ARIAPage({ patients }: ARIAPageProps) {
     abortRef.current = new AbortController();
 
     try {
-      const response = await fetch("/api/aria/chat", {
+      const response = await fetch("https://mediledger-nexus-api.onrender.com/api/aria/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: abortRef.current.signal,
