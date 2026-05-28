@@ -40,7 +40,7 @@ export async function fetchConsentTopicId(): Promise<string> {
 export async function submitConsentToHCS(
   payload: ConsentHCSPayload
 ): Promise<{ transactionId: string; topicId: string }> {
-  const response = await fetch("https://mediledger-nexus.onrender.com", {
+  const response = await fetch("https://mediledger-nexus-api.onrender.com/api/hedera/consent-topic", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
