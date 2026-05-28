@@ -176,7 +176,7 @@ export function OverviewPage({ records, hederaIdentity, hospitalName, userEmail,
           icon={<Users size={18} />}
           label="Patients"
           value={0}
-          sub="Registry coming soon"
+          sub="Registry"
           color="#60A5FA"
           onClick={() => onNavigate("patients")}
         />
@@ -184,7 +184,7 @@ export function OverviewPage({ records, hederaIdentity, hospitalName, userEmail,
           icon={<MessageSquare size={18} />}
           label="Active Consults"
           value={0}
-          sub="Consent system Phase 3"
+          sub="Consent system"
           color="#F59E0B"
           onClick={() => onNavigate("consult")}
         />
