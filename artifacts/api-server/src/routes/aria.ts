@@ -3,7 +3,6 @@
 // cryptographic proof of the consultation.
 
 import { Router, type IRouter, type Request, type Response } from "express";
-import Anthropic from "@anthropic-ai/sdk";
 import {
   ensureTopic,
   submitToTopic,
@@ -16,7 +15,7 @@ const router: IRouter = Router();
 
 const ARIA_SYSTEM_PROMPT = `You are ARIA — Autonomous Record Intelligence Agent — a clinical intelligence layer built into MediLedger Nexus, a blockchain-native Electronic Health Record interoperability platform.
 
-Your purpose is to provide structured, evidence-based clinical intelligence to healthcare professionals reviewing shared patient records. You help clinicians at Hospital A understand a patient's history sourced from Hospital B, without Hospital A ever receiving raw record files.
+Your purpose is to provide structured, evidence-based clinical intelligence to healthcare professionals reviewing shared patient records. You help clinicians at Hospital A understand a patient's history when records are shared cross-hospital.
 
 CAPABILITIES:
 - Synthesise patient histories from structured record summaries
@@ -47,13 +46,12 @@ PLATFORM CONTEXT:
 
 When the user provides patient context, begin your responses with a brief acknowledgement of the patient record you are working with.`;
 
-function buildAnthropicClient(): Anthropic {
-  const baseURL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
-  const apiKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
-  if (!baseURL || !apiKey) {
-    throw new Error("Anthropic AI integration not configured. Ensure AI_INTEGRATIONS_ANTHROPIC_BASE_URL and AI_INTEGRATIONS_ANTHROPIC_API_KEY are set.");
+function buildOpenRouterClient() {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error("OpenRouter API key not configured. Ensure OPENROUTER_API_KEY is set.");
   }
-  return new Anthropic({ baseURL, apiKey });
+  return apiKey;
 }
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
@@ -72,7 +70,8 @@ interface ARIAChatBody {
 async function anchorOnHedera(
   summaryText: string,
   patientDid: string | undefined,
-  question: string
+  question: string,
+  model: string
 ): Promise<{ hcsTxId: string; summaryHash: string; ariaTopic: string } | null> {
   try {
     const { accountId, privateKeyRaw } = getHederaCreds();
@@ -94,7 +93,7 @@ async function anchorOnHedera(
       summaryHash,
       patientDid: patientDid ?? null,
       questionPreview: question.slice(0, 120),
-      model: "claude-sonnet-4-6",
+      model,
       platform: "MediLedger Nexus",
     });
 
@@ -109,7 +108,7 @@ async function anchorOnHedera(
 }
 
 // POST /aria/chat
-// Streams Claude response as SSE. After the stream completes, anchors the
+// Streams Claude response as SSE via OpenRouter. After the stream completes, anchors the
 // summary on the ARIA Hedera topic and emits {done, hcsTxId, summaryHash, ariaTopic}.
 router.post("/aria/chat", async (req: Request, res: Response) => {
   const body = req.body as ARIAChatBody;
@@ -145,29 +144,70 @@ router.post("/aria/chat", async (req: Request, res: Response) => {
   res.setHeader("X-Accel-Buffering", "no");
 
   try {
-    const anthropic = buildAnthropicClient();
+    const apiKey = buildOpenRouterClient();
+    const model = process.env.OPENROUTER_MODEL || "anthropic/claude-3.5-sonnet";
 
     // Extract the last user question for the HCS anchor preview
     const lastUserMsg = [...validMessages].reverse().find((m) => m.role === "user");
     const question = lastUserMsg?.content ?? "";
 
-    // Strip any extra fields (e.g. `proof`) — Anthropic only accepts role + content
-    const anthropicMessages = validMessages.map(({ role, content }) => ({ role, content }));
-
-    const stream = anthropic.messages.stream({
-      model: "claude-sonnet-4-6",
-      max_tokens: 8192,
-      system: systemPrompt,
-      messages: anthropicMessages,
+    // OpenRouter API request via live backend API
+    const response = await fetch("https://mediledger-nexus-api.onrender.com/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://mediledger-nexus.onrender.com",
+        "X-Title": "MediLedger Nexus ARIA",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...validMessages.map(({ role, content }) => ({ role, content })),
+        ],
+        stream: true,
+        max_tokens: 8192,
+      }),
     });
 
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenRouter API error: ${response.status} ${error}`);
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
     let fullResponse = "";
 
+    if (!reader) {
+      throw new Error("No response body from OpenRouter");
+    }
+
     // Stream tokens to client
-    for await (const event of stream) {
-      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-        fullResponse += event.delta.text;
-        res.write(`data: ${JSON.stringify({ content: event.delta.text })}\n\n`);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split("\n");
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const data = line.slice(6).trim();
+          if (data === "[DONE]") continue;
+
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              fullResponse += content;
+              res.write(`data: ${JSON.stringify({ content })}\n\n`);
+            }
+          } catch {
+            // Ignore parse errors
+          }
+        }
       }
     }
 
@@ -175,7 +215,7 @@ router.post("/aria/chat", async (req: Request, res: Response) => {
     res.write(`data: ${JSON.stringify({ anchoring: true })}\n\n`);
 
     // Anchor the completed summary on Hedera HCS
-    const proof = await anchorOnHedera(fullResponse, body.patientContext?.did, question);
+    const proof = await anchorOnHedera(fullResponse, body.patientContext?.did, question, model);
 
     // Final SSE event — includes Hedera proof if available
     res.write(`data: ${JSON.stringify({
